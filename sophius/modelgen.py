@@ -29,19 +29,19 @@ class ModelGenerator_():
                 break
 
     def _gen_gap_layer(self):
-        next_in_shape = self.layers[-1].in_shape    # next shape - previos layer shape
+        next_in_shape = self.layers[-1].in_shape    # next shape - previous layer shape
         gap = GapLayerTmpl(next_in_shape)
         gap.gen_rand_layer()
         self.layers.append(gap)
 
     def _gen_flatten_layer(self):
-        next_in_shape = self.layers[-1].in_shape    # next shape - previos layer shape
+        next_in_shape = self.layers[-1].in_shape    # next shape - previous layer shape
         flatten = FlatLayerTmpl(next_in_shape)
         flatten.gen_rand_layer()
         self.layers.append(flatten)
     
     def _gen_lin_layers(self):
-        next_in_shape = self.layers[-1].in_shape    # next shape - previos layer shape
+        next_in_shape = self.layers[-1].in_shape    # next shape - previous layer shape
         lin_layers_num = random.randrange(0, self.lin_num)
 
         for _ in range(lin_layers_num):
@@ -51,7 +51,7 @@ class ModelGenerator_():
             next_in_shape = lin.out_shape         
 
     def _gen_lastlin_layer(self):
-        next_in_shape = self.layers[-1].in_shape    # next shape - previos layer shape        
+        next_in_shape = self.layers[-1].in_shape    # next shape - previous layer shape        
         last_tmpl = LinearTmpl(next_in_shape, self.out_shape)
         last_layer = LinLayerTmpl(next_in_shape, last_tmpl)
         self.layers.append(last_layer)
