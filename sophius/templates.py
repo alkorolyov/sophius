@@ -3,6 +3,7 @@ import random
 import numpy as np
 from math import ceil, floor
 import sophius.utils as utils
+from collections import defaultdict
 
 
 class Flatten(nn.Module):
@@ -10,57 +11,119 @@ class Flatten(nn.Module):
         N, C, H, W = x.size() # pylint: disable=unused-variable
         return x.view(N, -1)  # "flatten" the C * H * W values into a single vector per image
 
-class ParameterEx():
-    '''
-    Class for parameters of Templates
-    
-    'learnable' = True, defines whether parameter is going be optimized during genetic search
-    also it is going to be initialized as random value from defined list of values
-    
-    'learnable' = False, default value will be used, not changed during genetic search
 
-    '''
+class Parameter():
+    """         
+        - value (same type): value of parameter
+        - learnable (bool): is going to change during genetic search
+        - on_change (function): triggers when parameter.value changes 
+    """
     def __init__(self, value, learnable = True):
         self.value = value
         self.learnable = learnable
+
+    def __setattr__(self, key, value):
+        super().__setattr__(key, value)
+        if key != 'on_change' and key == 'value':
+            self.on_change()
+                
+    def on_change(self):
+        # override this
+        pass
+
     def __repr__(self):
-        # repr_str = 'ParamEx[' + str(self.value) + ']'
         repr_str = str(self.value)
         return repr_str
 
-'''
-    Template (ModuleTmpl) -> Layer template (class LayerTemplate) -> Model template (class ModelTmpl)
 
-'''
+class ConfigDict(dict):
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        if key != 'on_change':
+            self.on_change()
+                
+    def on_change(self):
+        # override this
+        pass
+
+
+class ConfigGenerator():
+    """
+    Generates config for a given template instance.
+    """
+    def __init__(self, template):
+        """
+        Input:
+        - template(ModuleTemplate_): instance of corresponding Module template
+        """
+        self.template = template
+
+    def get(self, **kwargs):
+        """
+        Generate config dictionary from input arguments or if absent from defaults
+        
+        Input:
+        - kwargs (dict): arguments with module specific config,
+                ex: kernel_size = (3, 3), stride = (1, 1)
+        Output:
+        - get_config (dict): Generated config, 'Parameter' type dictionary
+        """        
+        config_data = self.template.config_data
+        get_config = {}
+        for key in config_data:
+            value = kwargs.pop(key, config_data[key]['default'].value)
+            learn = config_data[key]['default'].learnable
+            get_config[key] = Parameter(value, learn)
+        # Throw an error if there are extra keyword arguments
+        if len(kwargs) > 0:
+            extra = ', '.join('"%s"' % k for k in list(kwargs.keys()))
+            raise ValueError('Unrecognized arguments %s' % extra)
+        return get_config
+
+    def get_random(self):
+        """
+        Randomly generate config dictionary from default ranges
+
+        Output:
+        - get_config (dict): Generated config, 'Parameter' type dictionary
+        """        
+        config_data = self.template.config_data
+        get_config = {}
+        for key in config_data:
+            try:
+                config_range = config_data[key]['range']
+                get_config[key] = Parameter(random.choice(config_range), learnable=True)
+            except KeyError:
+                get_config[key] = config_data[key]['default']
+        return get_config
+
 
 ###################### MODULE TEMPLATES ########################
-
-
-class ModuleTemplate_(): 
+class ModuleTemplate_():
     '''
         Base Class for Module Template.
-        Serves as a template for future Pytorch Module instance. Holds only the necessary parameters of the 
+        Serves as a template for future Pytorch Module instance. Holds only the necessary config of the 
         future module and doesn't hold weights that's why much lighter than Pytorch module. Could be then used a part of 
         Model template - architechture of future Model.
         
-        Upon __init__(self, in_shape=None, **params) 'in_shape' is always present, **params
-        are specific to each module and saved as self.params dict (ParameterEx class). Also for each parameter we have to set up
+        Upon __init__(self, in_shape=None, **kwargs) 'in_shape' is always present, **kwargs
+        are specific to each module and saved as self.config dict (Parameter class). Also for each config we have to set up
         a range of acceptable values for further optimisation or set '.learnable = False' (self._init_param_values_list())
-        When optimising parameters we can generate a new random set of parameters from corresponding range (self.gen_params)
+        When optimising config we can generate a new random set of config from corresponding range (self.gen_rand_config)
         
-        Important! There is no direct correspondance between ModuleTemplate_ Class parameters and PyTorch Module 
-        Class parameters.
+        Important! There is no direct correspondance between ModuleTemplate_ Class config and PyTorch Module 
+        Class config.
 
         After initialisation (__init__) self.in_shape attribute is determined and we can calculate self.out_shape 
-        (self.calc_out_shape() method) for linkage with other templates when it will be used as a part of Model.
+        (self._update_out_shape() method) for linkage with other templates when it will be used as a part of Model.
 
         Finally in order to get Pytorch module instance from template we need first create arguments for Pytorch Module, as not all
-        Module Template args corresponds to Pytorch module args. (self._create_args(): self.params -> self.args, self.kwargs) 
+        Module Template args corresponds to Pytorch module args. (self._create_args(): self.config -> self._args, self._kwargs) 
         Template could be then instantiated into pytorch Module and used for training ( self.instantiate_module() ).
 
         Example N1:            
             # create simple 1 layer model from templates
-            # with predetermined parameters
+            # with predetermined config
             # Conv - Flatten - Linear
             # create Conv2d template with CIFAR10 shape (3, 32, 32)        
             conv_tmpl = Conv2dTmpl(in_shape = (3, 32, 32), 
@@ -69,18 +132,18 @@ class ModuleTemplate_():
                                     padding = True)
             
             # calculate the output shape
-            conv_tmpl.calc_out_shape()
+            conv_tmpl._update_out_shape()
             
             # get pytorch module instance
             conv = conv_tmpl.instantiate_module()
 
             # repeat for Linear and Flatten tmpl
             flatten_tmpl = FlattenTmpl(in_shape = conv_tmpl.out_shape)
-            flatten_tmpl.calc_out_shape()
+            flatten_tmpl._update_out_shape()
             flatten = flatten_tmpl.instantiate_module()
 
             lin_tmpl = linTmpl(in_shape = flatten_tmpl.out_shape, out_shape = 10)
-            lin_tmpl.calc_out_shape()
+            lin_tmpl._update_out_shape()
             lin = lin_tmpl.instantiate_module()
             
             # create model
@@ -88,7 +151,7 @@ class ModuleTemplate_():
 
         Example N2:
 
-            # generate 10 models with random parameters using self.gen_params():
+            # generate 10 models with random config using self.gen_rand_config():
             
             # create empty templates only with starting shape defined
             conv_tmpl = Conv2dTmpl(in_shape = (3, 32, 32))
@@ -106,10 +169,10 @@ class ModuleTemplate_():
                 for tmpl in templates:
                     tmpl.in_shape = next_in_shape
                     
-                    # generate random params for each tmpl
-                    tmpl.gen_params()
+                    # generate random config for each tmpl
+                    tmpl.gen_rand_config()
                     
-                    tmpl.calc_out_shape()
+                    tmpl._update_out_shape()
                     next_in_shape = tmpl.out_shape
                 
                 # set out_shape 10 for the last tmpl
@@ -117,72 +180,101 @@ class ModuleTemplate_():
                 
                 # list of pytoch modules in model
                 mods =[]
-                # create pytorch modules
+                # instantiate pytorch modules
                 for tmpl in templates:
                     mods.append(tmpl.instantiate_module())
 
                 # create pytorch model
                 models.append(nn.Sequential(*mods))
     '''
+    config_data = {}
+    module_name = None
 
-    def __init__(self, in_shape=None, **params):
-        self.module_name = 'Parent'
-        self.in_shape = in_shape
-        self.out_shape = None
-        # utils.print_nonprivate_properties(self)
-        self._init_params(params)
-        self._init_param_values_list()
+    def __init__(self, in_shape=None, **kwargs):
+        '''
+            Creates a new ModuleTemplate instance. Saves in_shape and generates config.
 
-    def _init_params(self, params):
-        '''
-        Init params from **params dictionary to ParameterEx class
-        '''
-        
-        self.params = {}        
-        for key in params:
-            self.params[key] = ParameterEx(params[key])        
-
-    def _init_param_values_list(self):
-        '''
-        Children override this method
-        Set's the range of possible values for each param
-
-        ex: self.param_values['kernel_size'] = [(2, 2), (3, 3)]
-            self.param_values['stride'] = [1, 2]
-        '''
-        self.param_values = {}
-    
-    def set_in_shape(self, in_shape):
-        self.in_shape = in_shape
-    
-    # def set_out_shape(self, out_shape):
-        # print(self.module_name + ': cannot set out_shape for this template')
+            Required arguments:
+            - in_shape (tuple, int or None):  shape of the input without batch size, ex: (3, 32, 32)
             
-    def calc_out_shape(self):
-        self.out_shape = self.in_shape
+            Optional arguments:
+            - kwargs (dict): specific config for each module as kwargs, ex: kernel_size = (3, 3)
+        '''
+        self._in_shape = in_shape
+        self._config = ConfigGenerator(self).get(**kwargs)
+        # config change handlers
+        # self._config.on_change = self.update_shape
+        # for key in self._config:
+        #     self._config[key].on_change = self.update_shape
+        self.update_shape()
+        # utils.print_nonprivate_properties(self)
+
+    @property
+    def config(self):
+        return self._config
     
-    def check_zero_shape(self):
-        is_zero_shape = False
+    @config.setter
+    def config(self, value):
+        self._config = value
+        self.update_shape()
+
+    @property
+    def in_shape(self):
+        return self._in_shape
+    
+    @in_shape.setter
+    def in_shape(self, in_shape):
+        self._in_shape = in_shape
+        self.update_shape()
+
+    def update_shape(self):
+        """
+        Handles change of out_shape
+        """
+        if self.in_shape is None:
+            self.out_shape = None
+            self.is_zero_shape = False
+        else:
+            self._update_out_shape()
+            self._is_zero_shape()
+
+    def _update_out_shape(self):
+        """
+        Updates out_shape value when in_shape or config changes
+        """
+        # children overwrite this
+        self.out_shape = self.in_shape
+
+    def _is_zero_shape(self):
+        """
+        Zero shape check for output shape
+        Sets self.is_zero_shape 'True' if at least one dimension <=0
+        """
+        self.is_zero_shape = False
         # multidim shape
         if type(self.out_shape) is tuple:
             for dim in self.out_shape:
                 if dim < 1:
-                    is_zero_shape = True
-
+                    self.is_zero_shape = True
         # scalar shape
         elif self.out_shape < 1:
-            is_zero_shape = True
-        return is_zero_shape
+            self.is_zero_shape = True
+
+    def set_out_shape(self, out_shape):
+        """
+        We can set out_shape only for Linear type templates.        
+        """
+        # Linear templates overwrites this
+        raise Exception('Cannot set out_shape for Non linear templates (%s)' % self.module_name)
 
     def calc_maccs(self):
         '''
-            Multiply-ACCumulate operationS
-            Children override this
+        Multiply-ACCumulate operationS
+        Children override this
         '''
         self.maccs = 0
 
     def calc_flops(self):
-        self.calc_out_shape()
         if self.out_shape:
             self._calc_flops()
         else:
@@ -190,34 +282,45 @@ class ModuleTemplate_():
 
     def _calc_flops(self):
         '''
-            Flops calculation for each module type. Children will override this
+        Flops calculation for each module type. Children will override this
         '''
         self.flops = 0
 
-    def gen_params(self, random_gen = True):
-        '''
-        For each parameter generate a random value from a list self.param_values[]
-        '''
-
-        learnable_params = (key for key in self.params if self.params[key].learnable)
-        if random_gen:            
-            for key in learnable_params:
-                # print(key, self.param_values[key])
-                self.params[key].value = random.choice(self.param_values[key])
-        else:
-            # Not implemented
-            pass
-
+    def gen_rand_config(self):
+        self.config = ConfigGenerator(self).get_random()
+    
     def instantiate_module(self):
-        in_type = type(self.in_shape)
+        """
+        Returns an instance of PyTorch module from template.
+
+        self.in_shape != None
+
+        Output:
+        - instance: PyTorch module instance
+        """
+        # in_type = type(self.in_shape)
         # if (in_type is int) or (in_type is tuple):
         self._create_args()
-        torch_instance = globals()['nn']
-        klass = getattr(torch_instance, self.module_name)
-        instance = klass(*self.args, **self.kwargs)
+        nn_instance = globals()['nn']
+        klass = getattr(nn_instance, self.module_name)
+        instance = klass(*self._args, **self._kwargs)
         return instance
         # else:
             # raise TypeError("in_shape should be int or tuple, instead {}".format(in_type))
+
+    def _create_args(self):
+        '''
+        Children ovewrite this.
+
+        Creates arguments from self.config for pytorch Module class
+        
+        Example for pytorch Linear(in_shape, features, bias = True):
+            self._args = [self.in_shape, self.out_shape]
+            self._kwargs = {'bias' : self.config['bias'].value}
+                    
+        '''
+        self._args = []
+        self._kwargs = {}
 
     # def gen_hash(self):
         # # module name to number:
@@ -226,33 +329,16 @@ class ModuleTemplate_():
         # hash_str += hash_dict['module_name'][module_ind]
         # # print(self.module_name, hash_str) # debug
         # # param value to number
-        # for key in self.params:
-        #     if self.params[key].learnable:                
-        #         param_val = self.params[key].value
+        # for key in self.config:
+        #     if self.config[key].learnable:                
+        #         param_val = self.config[key].value
         #         param_ind = self.param_values[key].index(param_val)
         #         hash_str += hash_dict[key][param_ind]
         #         # print(key, hash_dict[key][param_ind])  # debug
         # return hash_str
 
-    def _create_args(self):
-        '''
-        Children ovewrite this
-        Creates arguments from self.params for pytorch Module class
-        Example for pytorch Linear(in_shape, features, bias = True):
-            self.args = [self.in_shape, self.out_shape]
-            self.kwargs = {'bias' : self.params['bias'].value}
-                    
-        '''
-        self.args = []
-        self.kwargs = {}            
-        
-    # def _int2tuple_broadcast(self, param_name):
-        # value = self.params[param_name].value
-        # if type(value) is not tuple:
-        #     self.params[param_name].value = (value, value)
-
     def __repr__(self):
-        # tmpl_str = ', '.join((repr(self.in_shape), repr(self.params)))
+        # tmpl_str = ', '.join((repr(self.in_shape), repr(self.config)))
         repr_str = '{:12} {:14}'.format(str(self.module_name), str(self.out_shape))
         return repr_str
 
@@ -262,451 +348,188 @@ class ModuleTemplate_():
         if self.module_name != other.module_name:
             equal = False
             return equal
-        # check params for same modules
-        for key in self.params:
-            val1 = self.params[key].value
-            try:            
-                val2 = other.params[key].value
-                if val1 != val2:
+        # check config for same modules
+        for key in self.config:
+            self_val = self.config[key].value
+            try:
+                other_val = other.config[key].value
+                if self_val != other_val:
                     equal = False
                     break
-            except:
+            except KeyError:
                 equal = False
                 break
         return equal
 
 
 class LinearTmpl(ModuleTemplate_):
-    def __init__(self, in_shape=None, out_features=256, bias=True):        
-        super().__init__(in_shape=in_shape,        
-                         out_features=out_features, 
-                         bias=bias)        
-        self.module_name = 'Linear'
-        self.calc_out_shape()
+
+    config_data = {        
+        'out_features': {
+            'default': Parameter(256),
+            'range': [32, 64, 128, 256, 512, 1024, 2048, 4096]
+        },
+        'bias': {
+            'default': Parameter(True, learnable = False)
+        }
+    }
     
-    def _init_param_values_list(self):
-        self.param_values = {}
-        self.param_values['out_features'] = [32, 64, 128, 256, 512, 1024, 2048, 4096]
-        self.params['bias'].learnable = False
-        
-    def calc_out_shape(self):
-        self.out_shape = self.params['out_features'].value
+    def __init__(self, in_shape=None, **kwargs):
+        self.module_name = 'Linear'
+        super().__init__(in_shape=in_shape, **kwargs)
+        # utils.print_nonprivate_properties(self)
+    
+    def _update_out_shape(self):
+        self.out_shape = self.config['out_features'].value
 
     def set_out_shape(self, out_shape):
         self.out_shape = out_shape
-        self.params['out_features'] = ParameterEx(out_shape, learnable = False)
+        self.config['out_features'] = Parameter(out_shape)
 
     def calc_maccs(self):
         self.maccs = self.in_shape * self.out_shape
 
     def _calc_flops(self):
-        bias = self.params['bias'].value
+        bias = self.config['bias'].value
         if bias:
             self.flops = 2 * self.in_shape * self.out_shape
         else:
             self.flops = (2 * self.in_shape - 1) * self.out_shape
 
     def _create_args(self):
-        self.args = [self.in_shape, self.out_shape]
-        self.kwargs = {'bias' : self.params['bias'].value}
+        self._args = [self.in_shape, self.config['out_features'].value]
+        self._kwargs = {'bias' : self.config['bias'].value}
 
-        
-class Conv2dTmpl(ModuleTemplate_): 
-    def __init__(self, in_shape = None, 
-                 out_channels = 32, 
-                 kernel_size = (7, 7), 
-                 stride = (1, 1), 
-                 padding = False, 
-                 padding_size = (0, 0), 
-                 padding_mode = 'zeros',
-                 dilation = (1, 1), 
-                 groups = 1,
-                 bias = True):
-               
-        super().__init__(in_shape = in_shape, 
-                        out_channels = out_channels, 
-                        kernel_size = kernel_size, 
-                        stride = stride, 
-                        padding = padding,
-                        padding_size = padding_size, 
-                        padding_mode = padding_mode,
-                        dilation = dilation, 
-                        groups = groups, 
-                        bias = bias)
-        # utils.print_nonprivate_properties(self)
-        self.module_name = 'Conv2d'
-        self._calc_padding_size()
-        # self._postfix_conv_params()
-        self.calc_out_shape()
-
-    def gen_params(self):
-        super().gen_params()
-        self._calc_padding_size()
-        # self._postfix_conv_params()        
-
-    def _init_param_values_list(self):
-        self.param_values = {}
-        self.param_values['out_channels'] = [8, 16, 32, 64, 128, 256]
-        self.param_values['kernel_size'] = [(2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8)]
-        self.param_values['stride'] = [(1, 1), (2, 2), (3, 3), (4, 4)]
-        self.param_values['padding'] = [True, False]
-        self.params['dilation'].learnable = False
-        self.params['groups'].learnable = False
-        self.params['bias'].learnable = False
-        self.params['padding_mode'].learnable = False
-
-    def _calc_padding_size(self):
-        padding = self.params['padding'].value
-        kernel_size = self.params['kernel_size'].value
-        if padding:
-            self.params['padding_size'] = ParameterEx((kernel_size[0] // 2, kernel_size[1] // 2), learnable=False)
-        else:
-            self.params['padding_size'] = ParameterEx((0, 0), learnable=False)
-
-    def calc_out_shape(self):
-        if self.in_shape is None:
-            self.out_shape = None
-        else:
-            in_shape = self.in_shape
-            padding = self.params['padding_size'].value
-            dilation = self.params['dilation'].value
-            kernel_size = self.params['kernel_size'].value
-            stride = self.params['stride'].value
-
-            out_shape_height = (in_shape[1] + 2*padding[0] - dilation[0] * (kernel_size[0] - 1) - 1) // stride[0] + 1
-            out_shape_width = (in_shape[2] + 2*padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) // stride[1] + 1
-
-            self.out_shape = (self.params['out_channels'].value, out_shape_height, out_shape_width)          
-
-    def calc_maccs(self):
-        self.calc_out_shape()
-        if not self.out_shape:
-            kernel = self.params['kernel_size'].value
-            self.maccs = kernel[0] * kernel[1] * self.in_shape[0] * \
-                self.out_shape[0] * self.out_shape[1] * self.out_shape[2]
-        else:
-            self.maccs = 0
-
-    def _calc_flops(self):
-        kernel = self.params['kernel_size'].value
-        bias = self.params['bias'].value
-        if bias:
-            self.flops = 2 * kernel[0] * kernel[1] * self.in_shape[0] * \
-                self.out_shape[0] * self.out_shape[1] * self.out_shape[2]
-        else:
-            self.flops = (2 * kernel[0] * kernel[1] - 1) * self.in_shape[0] * \
-                self.out_shape[0] * self.out_shape[1] * self.out_shape[2]
-        
-    def _create_args(self):
-        self.args = [self.in_shape[0],
-                     self.out_shape[0],
-                     self.params['kernel_size'].value]
-        self.kwargs = {'stride' : self.params['stride'].value,
-                       'padding' : self.params['padding_size'].value,
-                       'dilation' : self.params['dilation'].value,
-                       'groups' : self.params['groups'].value,
-                       'bias' : self.params['bias'].value,
-                       'padding_mode' : self.params['padding_mode'].value,
-                      }
-
-    def __repr__(self):
-        kernel_size = str(self.params['kernel_size'].value)
-        stride = str(self.params['stride'].value)        
-        repr_str = '{:12} {:14} {:8} {:8}'.format(self.module_name, 
-                                                  str(self.out_shape), 
-                                                  kernel_size,
-                                                  stride)
-        return repr_str        
-
-
-class MaxPool2dTmpl(ModuleTemplate_):
-    def __init__(self, in_shape = None,
-                 kernel_size = (2, 2),
-                 stride = (2, 2),           
-                 padding = False,
-                 padding_size = (0, 0),
-                 dilation = (1, 1),
-                 return_indices = False,
-                 ceil_mode=False):
-        super().__init__(in_shape = in_shape,
-                         kernel_size = kernel_size,
-                         stride = stride,
-                         padding = padding,
-                         padding_size = padding_size,
-                         dilation = dilation,
-                         return_indices = return_indices,
-                         ceil_mode = ceil_mode)
-        
-        self.module_name = 'MaxPool2d'
-        self._calc_padding_size()
-        # self._postfix_conv_params()
-        self.calc_out_shape()
-    
-    def gen_params(self):
-        super().gen_params()
-        self._calc_padding_size()
-        # self._postfix_conv_params()        
-
-    def _calc_padding_size(self):
-        padding = self.params['padding'].value
-        kernel_size = self.params['kernel_size'].value
-        if padding:
-            self.params['padding_size'] = ParameterEx((kernel_size[0] // 2, kernel_size[1] // 2), learnable=False)
-        else:
-            self.params['padding_size'] = ParameterEx((0, 0), learnable=False)
-
-    def _init_param_values_list(self):
-        self.param_values = {}
-        self.param_values['kernel_size'] = [(2, 2), (3, 3), (4, 4)]
-        self.param_values['stride'] = [(1, 1), (2, 2)]
-        self.param_values['padding'] = [True, False]
-        self.params['dilation'].learnable = False
-        self.params['return_indices'].learnable = False
-        # ceil_mode doesn't seem to work correctly
-        self.params['ceil_mode'].learnable = False
-
-    # def _postfix_conv_params(self):
-        # padding = self.params['padding'].value
-        # kernel_size = self.params['kernel_size'].value
-        # if padding:
-        #     self.params['padding_size'] = ParameterEx(kernel_size // 2, learnable=False)
-        # else:
-        #     self.params['padding_size'] = ParameterEx(0, False)
-        # for param_name in ['kernel_size', 'stride', 'padding_size', 'dilation']:
-        #     self._int2tuple_broadcast(param_name)
-
-    def calc_out_shape(self):
-        if self.in_shape is None:
-            self.out_shape = None
-        else:
-            in_shape = self.in_shape
-            padding = self.params['padding_size'].value
-            dilation = self.params['dilation'].value
-            kernel_size = self.params['kernel_size'].value
-            stride = self.params['stride'].value
-            ceil_mode = self.params['ceil_mode'].value
-
-            out_shape_height = (in_shape[1] + 2*padding[0] - dilation[0] * (kernel_size[0] - 1) - 1) / stride[0] + 1
-            out_shape_width = (in_shape[2] + 2*padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) / stride[1] + 1
-            if ceil_mode:
-                out_shape_height = ceil(out_shape_height)
-                out_shape_width = ceil(out_shape_width)
-            else:
-                out_shape_height = floor(out_shape_height)
-                out_shape_width = floor(out_shape_width)
-
-            self.out_shape = (in_shape[0], out_shape_height, out_shape_width)
-
-    def _create_args(self):
-        self.args = [self.params['kernel_size'].value]
-        self.kwargs = {'stride' : self.params['stride'].value,
-                       'padding' : self.params['padding_size'].value,                       
-                       'dilation' : self.params['dilation'].value,                      
-                       'ceil_mode' : self.params['ceil_mode'].value,
-                      }
-
-    def __repr__(self):
-        kernel_size = str(self.params['kernel_size'].value)
-        stride = str(self.params['stride'].value)        
-        repr_str = '{:12} {:14} {:8} {:8}'.format(self.module_name, 
-                                                  str(self.out_shape), 
-                                                  kernel_size,
-                                                  stride)
-        return repr_str        
-
-
-class AvgPool2dTmpl(ModuleTemplate_):
-    def __init__(self, in_shape = None,
-                 kernel_size = (2, 2),
-                 stride = (2, 2),           
-                 padding = False,
-                 padding_size = (0, 0),
-                 ceil_mode=False):
-        super().__init__(in_shape = in_shape,
-                         kernel_size = kernel_size,
-                         stride = stride,
-                         padding = padding,
-                         padding_size = padding_size,
-                         ceil_mode = ceil_mode)
-        
-        self.module_name = 'AvgPool2d'
-        self._calc_padding_size()
-        # self._postfix_conv_params()
-        self.calc_out_shape()
-    
-    def gen_params(self):
-        super().gen_params()
-        self._calc_padding_size()
-        # self._postfix_conv_params()        
-
-    def _calc_padding_size(self):
-        padding = self.params['padding'].value
-        kernel_size = self.params['kernel_size'].value
-        if padding:
-            self.params['padding_size'] = ParameterEx((kernel_size[0] // 2, kernel_size[1] // 2), learnable=False)
-        else:
-            self.params['padding_size'] = ParameterEx((0, 0), learnable=False)
-
-    def _init_param_values_list(self):
-        self.param_values = {}
-        self.param_values['kernel_size'] = [(2, 2), (3, 3), (4, 4)]
-        self.param_values['stride'] = [(1, 1), (2, 2)]
-        self.param_values['padding'] = [True, False]
-        # ceil_mode doesn't seem to work correctly
-        self.params['ceil_mode'].learnable = False
-
-    def calc_out_shape(self):
-        if self.in_shape is None:
-            self.out_shape = None
-        else:
-            in_shape = self.in_shape
-            padding = self.params['padding_size'].value
-            kernel_size = self.params['kernel_size'].value
-            stride = self.params['stride'].value
-            ceil_mode = self.params['ceil_mode'].value
-
-            out_shape_height = (in_shape[1] + 2*padding[0] - kernel_size[0]) / stride[0] + 1
-            out_shape_width = (in_shape[2] + 2*padding[1] - kernel_size[1]) / stride[1] + 1
-            if ceil_mode:
-                out_shape_height = ceil(out_shape_height)
-                out_shape_width = ceil(out_shape_width)
-            else:
-                out_shape_height = floor(out_shape_height)
-                out_shape_width = floor(out_shape_width)
-
-            self.out_shape = (in_shape[0], out_shape_height, out_shape_width)
-
-    def _create_args(self):
-        self.args = [self.params['kernel_size'].value]
-        self.kwargs = {'stride' : self.params['stride'].value,
-                       'padding' : self.params['padding_size'].value,
-                       'ceil_mode' : self.params['ceil_mode'].value,
-                      }
-
-    def __repr__(self):
-        kernel_size = str(self.params['kernel_size'].value)
-        stride = str(self.params['stride'].value)        
-        repr_str = '{:12} {:14} {:8} {:8}'.format(self.module_name, 
-                                                  str(self.out_shape), 
-                                                  kernel_size,
-                                                  stride)
-        return repr_str        
-
-
-class GlobalAvgPool2dTmpl(ModuleTemplate_):
-    def __init__(self, in_shape = None):
-        super().__init__(in_shape = in_shape)
-        
-        self.module_name = 'AvgPool2d'
-        self.calc_out_shape()
-    
-    def gen_params(self):
-        super().gen_params()
-
-    def _init_param_values_list(self):
-        self.param_values = {}
-
-    def calc_out_shape(self):
-        if self.in_shape is None:
-            self.out_shape = None
-        else:
-            in_shape = self.in_shape
-            self.out_shape = (in_shape[0], 1, 1)    # out_shape is (num_channels, 1, 1)
-
-    def _create_args(self):
-        self.args = [(self.in_shape[1], self.in_shape[2])]    # kernel_size = in_shape for AvgPool2d
-        self.kwargs = {}
-
-    def __repr__(self):
-        repr_str = '{:12} {:14}'.format('Global' + self.module_name, str(self.out_shape))
-        return repr_str        
-    
 
 class BatchNorm2dTmpl(ModuleTemplate_):
-    def __init__(self, in_shape = None, eps=1e-5, momentum=0.1, affine=True,
-                 track_running_stats=True):
-        super().__init__(in_shape = in_shape, eps = eps, momentum = momentum, affine = affine, 
-                        track_running_stats = track_running_stats)                
+    config_data = {
+        'eps': {
+            'default': Parameter(1e-5, learnable = False)
+        },
+        'momentum': {
+            'default': Parameter(0.1, learnable = False)
+        },
+        'affine': {
+            'default': Parameter(True, learnable = False)
+        },
+        'track_running_stats': {
+            'default': Parameter(True, learnable = False)
+        }
+    }
+
+    def __init__(self, in_shape=None, **kwargs):
         self.module_name = 'BatchNorm2d'
-        self.calc_out_shape()
-
-    def _init_param_values_list(self):
-        self.param_values = {}
-        self.params['eps'].learnable = False
-        self.params['momentum'].learnable = False
-        self.params['affine'].learnable = False
-        self.params['track_running_stats'].learnable = False
-
+        super().__init__(in_shape = in_shape, **kwargs)
+        # utils.print_nonprivate_properties(self)
+    
     def _create_args(self):
-        self.args = [self.in_shape[0]]
-        self.kwargs = {
-            'eps' : self.params['eps'].value,
-            'momentum' : self.params['momentum'].value,
-            'affine' : self.params['affine'].value,
-            'track_running_stats' : self.params['track_running_stats'].value
+        self._args = [self.in_shape[0]]
+        self._kwargs = {
+            'eps' : self.config['eps'].value,
+            'momentum' : self.config['momentum'].value,
+            'affine' : self.config['affine'].value,
+            'track_running_stats' : self.config['track_running_stats'].value
         }        
 
         
 class ReLUTmpl(ModuleTemplate_):
-    def __init__(self, in_shape = None, inplace = True):
-        super().__init__(in_shape=in_shape)
-        
+    config_data = {
+        'inplace': {
+            'default': Parameter(True, learnable=False)
+        }
+    }
+
+    def __init__(self, in_shape=None, **kwargs):
         self.module_name = 'ReLU'
-        self.calc_out_shape()
+        super().__init__(in_shape = in_shape, **kwargs)
 
-    # def _init_param_values_list(self):
-    #     self.params['inplace'].learnable = False
-
-    # def _create_args(self):
-    #     self.args = []
-    #     self.kwargs = {
-    #         'inplace' : self.params['inplace'].value
-    #     }
+    def _create_args(self):
+        self._args = []
+        self._kwargs = {
+            'inplace' : self.config['inplace'].value
+        }
 
 
 class LeakyReLUTmpl(ModuleTemplate_):
-    def __init__(self, in_shape = None, negative_slope = 0.01, inplace=True):
-        super().__init__(in_shape = in_shape, 
-                        negative_slope = negative_slope,
-                        inplace = inplace)
+    config_data = {
+        'negative_slope': {
+            'default': Parameter(0.1),
+            'range': [0.1, 0.01 , 0.001]
+        },
+        'inplace': {
+            'default': Parameter(True, learnable=False)
+        }
+    }
+
+    def __init__(self, in_shape=None, **kwargs):
         self.module_name = 'LeakyReLU'
-        self.calc_out_shape()
-    
-    def _init_param_values_list(self):
-        self.param_values = {}
-        self.param_values['negative_slope'] = [0.1, 0.01, 0.001]
-        self.params['inplace'].learnable = False
-    
+        super().__init__(in_shape = in_shape, **kwargs)
+        
     def _create_args(self):
-        self.args = []
-        self.kwargs = {
-            'negative_slope' : self.params['negative_slope'].value,
-            'inplace' : self.params['inplace'].value
+        self._args = []
+        self._kwargs = {
+            'negative_slope' : self.config['negative_slope'].value,
+            'inplace' : self.config['inplace'].value
         }
     def __repr__(self):
-        negative_slope = self.params['negative_slope'].value
+        negative_slope = self.config['negative_slope'].value
         repr_str = '{:12} {:14} {:8}'.format( self.module_name,
                                         str(self.out_shape),
                                         '(' + str(negative_slope) + ')' )
         return repr_str
 
 
+class PReLUTmpl(ModuleTemplate_):
+    config_data = {
+        'all_channels': {
+            'default': Parameter(True),
+            'range': [True, False]
+        },
+        'init_value': {
+            'default': Parameter(0.25, learnable=False)
+        }
+    }
+
+    def __init__(self, in_shape=None, **kwargs):
+        self.module_name = 'PReLU'
+        super().__init__(in_shape = in_shape, **kwargs)
+        
+    def _create_args(self):        
+        if self.config['all_channels'].value:
+            if type(self.in_shape) is int:
+                num_channels = self.in_shape
+            else:
+                num_channels = self.in_shape[0]
+        else:
+            num_channels = 1            
+        self._args = []
+        self._kwargs = {
+            'num_parameters' : num_channels,
+            'init' : self.config['init_value'].value
+        }
+
+
 class Dropout2dTmpl(ModuleTemplate_):
-    def __init__(self, in_shape = None, p = 0.7, inplace = False):
-        super().__init__(in_shape = in_shape, p = p)
+    config_data = {
+        'p': {
+            'default': Parameter(0.75),
+            'range': np.linspace(0.05, 0.95, num = 19)
+        },
+        'inplace': {
+            'default': Parameter(True, learnable=False)
+        }
+    }
+
+    def __init__(self, in_shape=None, **kwargs):
         self.module_name = 'Dropout2d'
-        self.calc_out_shape()           
-
-    def _init_param_values_list(self):
-        self.param_values = {}
-        self.param_values['p'] = np.linspace(0.05, 0.95, num = 19)
-
+        super().__init__(in_shape = in_shape, **kwargs)
+    
     def _create_args(self):
-        self.args = [self.params['p'].value]
-        self.kwargs = {}
+        self._args = [self.config['p'].value]
+        self._kwargs = {}
 
     def __repr__(self):
-        p = round(self.params['p'].value, 2)
+        p = round(self.config['p'].value, 2)
         repr_str = '{:12} {:14} {:8}'.format( self.module_name,
                                         str(self.out_shape),
                                         '(' + str(p) + ')' )
@@ -714,12 +537,11 @@ class Dropout2dTmpl(ModuleTemplate_):
 
 
 class FlattenTmpl(ModuleTemplate_):
-    def __init__(self, in_shape = None):        
-        super().__init__(in_shape = in_shape)
+    def __init__(self, in_shape=None, **kwargs):
         self.module_name = 'Flatten'
-        self.calc_out_shape()
+        super().__init__(in_shape = in_shape, **kwargs)
 
-    def calc_out_shape(self):
+    def _update_out_shape(self):
         if self.in_shape is None:
             self.out_shape = None
         else:
@@ -731,16 +553,389 @@ class FlattenTmpl(ModuleTemplate_):
     def instantiate_module(self):
         self._create_args()
         klass = globals()[self.module_name]
-        instance = klass(*self.args, **self.kwargs)
+        instance = klass(*self._args, **self._kwargs)
         return instance
+
+
+class ConvTemplate_(ModuleTemplate_):
+    """
+    Parent template for Convolutional layers.
+    
+    Children should implement _create_args() method, create config_data dictionary and 
+    call _conv_update_out_shape() with arguments specific for each layer type.
+
+    Input:
+     - in_shape (C, H, W): 3d tuple of number of input channels (like 3 RGB images), 
+        height and width
+     - kwargs: key argumets specific for each layer
+    """
+    config_data = {
+        'out_channels': {
+            'default': Parameter(32),
+            'range': [2, 4, 8]
+        },
+        'kernel_size': {
+            'default': Parameter((3, 3)),            
+            'range': [(1, 1), (2, 2), (3, 3)]
+        },
+        'stride': {
+            'default': Parameter((1, 1)),
+            'range': [(1, 1), (2, 2), (3, 3)]
+        },
+        'padding': {
+            'default': Parameter(True),
+            'range': [True, False]
+        },
+        'dilation': {
+            'default': Parameter( (1, 1) )
+        },
+        'ceil_mode': {
+            'default': Parameter(False)
+        }
+    }
+
+    # children should override this
+    def _update_out_shape(self):
+        self._conv_update_out_shape()
+
+    def _conv_update_out_shape(self,
+                               out_channels=None,
+                               kernel_size = None,
+                               stride = None,
+                               dilation = None,                            
+                               ceil_mode = None):
+        """
+        General method to calculate convolution output shape.
+        
+        If None args specified - defalult values taken from self.config
+        
+        Output:
+        - None: updates self.out_shape
+        """
+        
+        if self.in_shape is None:
+            self.out_shape = None
+            return
+        else:
+            in_shape=self.in_shape
+            padding = self._calc_padding_size()
+            if out_channels is None:
+                out_channels=self.config['out_channels'].value
+            if kernel_size is None:
+                kernel_size = self.config['kernel_size'].value
+            if stride is None:
+                stride = self.config['stride'].value
+            if dilation is None:
+                dilation = self.config['dilation'].value
+            if ceil_mode is None:
+                ceil_mode = self.config['ceil_mode'].value
+            
+            out_shape_height = (in_shape[1] + 2*padding[0] - dilation[0] * (kernel_size[0] - 1) - 1) / stride[0] + 1
+            out_shape_width = (in_shape[2] + 2*padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) / stride[1] + 1
+
+            if ceil_mode:
+                out_shape_height = ceil(out_shape_height)
+                out_shape_width = ceil(out_shape_width)
+            else:
+                out_shape_height = floor(out_shape_height)
+                out_shape_width = floor(out_shape_width)
+
+            self.out_shape = (out_channels, out_shape_height, out_shape_width)
+
+    def _calc_padding_size(self):
+        """
+        Calculate padding size for convolutional layers.
+
+        Output:
+        - (2d tuple of int): padding size
+        """
+        padding = self.config['padding'].value
+        kernel_size = self.config['kernel_size'].value
+        if padding:
+            return (kernel_size[0] // 2, kernel_size[1] // 2)
+        else:
+            return (0, 0)
+
+
+class Conv2dTmpl(ConvTemplate_): 
+
+    config_data = {
+        'out_channels': {
+            'default': Parameter(32),
+            'range': [8, 16, 32, 64, 96, 128, 192, 256]
+        },
+        'kernel_size': {
+            'default': Parameter((3, 3)),
+            'range': [(1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7)]
+        },
+        'stride': {
+            'default': Parameter((1, 1)),
+            'range': [(1, 1), (2, 2), (3, 3), (4, 4)]
+        },
+        'padding': {
+            'default': Parameter(True),
+            'range': [True, False]
+        },
+        'padding_mode': {
+            'default': Parameter('zeros', learnable = False)
+        },
+        'dilation': {
+            'default': Parameter((1, 1), learnable = False)
+        },
+        'groups': {
+            'default': Parameter(1, learnable = False)
+        },
+        'bias': {
+            'default': Parameter(True, learnable = False)
+        }
+    }
+
+    def __init__(self, in_shape=None, **kwargs):
+        """
+        
+        """
+        
+        self.module_name = 'Conv2d'
+        super().__init__(in_shape = in_shape, **kwargs)
+        # utils.print_nonprivate_properties(self)
+
+    def _update_out_shape(self):
+        self._conv_update_out_shape(ceil_mode=False)
+
+    # def _conv_update_out_shape(self):
+        # if self.in_shape is None:
+        #     self.out_shape = None
+        # else:
+        #     in_shape = self.in_shape
+        #     padding = self.config['padding_size'].value
+        #     dilation = self.config['dilation'].value
+        #     kernel_size = self.config['kernel_size'].value
+        #     stride = self.config['stride'].value
+
+        #     out_shape_height = (in_shape[1] + 2*padding[0] - dilation[0] * (kernel_size[0] - 1) - 1) // stride[0] + 1
+        #     out_shape_width = (in_shape[2] + 2*padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) // stride[1] + 1
+
+        #     self.out_shape = (self.config['out_channels'].value, out_shape_height, out_shape_width)
+
+    def calc_maccs(self):
+        self._update_out_shape()
+        if not self.out_shape:
+            kernel = self.config['kernel_size'].value
+            self.maccs = kernel[0] * kernel[1] * self.in_shape[0] * \
+                self.out_shape[0] * self.out_shape[1] * self.out_shape[2]
+        else:
+            self.maccs = 0
+
+    def _calc_flops(self):
+        kernel = self.config['kernel_size'].value
+        bias = self.config['bias'].value
+        if bias:
+            self.flops = 2 * kernel[0] * kernel[1] * self.in_shape[0] * \
+                self.out_shape[0] * self.out_shape[1] * self.out_shape[2]
+        else:
+            self.flops = (2 * kernel[0] * kernel[1] - 1) * self.in_shape[0] * \
+                self.out_shape[0] * self.out_shape[1] * self.out_shape[2]
+        
+    def _create_args(self):
+        self._args = [self.in_shape[0],
+                     self.out_shape[0],
+                     self.config['kernel_size'].value]
+        self._kwargs = {'stride' : self.config['stride'].value,
+                       'padding' : self._calc_padding_size(),
+                       'dilation' : self.config['dilation'].value,
+                       'groups' : self.config['groups'].value,
+                       'bias' : self.config['bias'].value,
+                       'padding_mode' : self.config['padding_mode'].value,
+                      }
+
+    def __repr__(self):
+        kernel_size = str(self.config['kernel_size'].value)
+        stride = str(self.config['stride'].value)        
+        repr_str = '{:12} {:14} {:8} {:8}'.format(self.module_name, 
+                                                  str(self.out_shape), 
+                                                  kernel_size,
+                                                  stride)
+        return repr_str        
+
+
+class MaxPool2dTmpl(ConvTemplate_):
+
+    config_data = {
+        'kernel_size': {
+            'default': Parameter((2, 2)),
+            'range': [(2, 2), (3, 3), (4, 4)]
+        },
+        'stride': {
+            'default': Parameter((2, 2)),
+            'range': [(1, 1), (2, 2), (3, 3)]
+        },
+        'padding': {
+            'default': Parameter(False),
+            'range': [True, False]
+        },
+        'dilation': {
+            'default': Parameter((1, 1), learnable = False)
+        },
+        'return_indices': {
+            'default': Parameter(False, learnable = False)
+        },
+        # ceil mode doesn't work correctly TODO: report bug
+        'ceil_mode': {
+            'default': Parameter(False, learnable = False)
+        }
+    }
+
+    def __init__(self, in_shape=None, **kwargs):
+        self.module_name = 'MaxPool2d'
+        super().__init__(in_shape = in_shape, **kwargs)
+        # utils.print_nonprivate_properties(self)
+
+    def _update_out_shape(self):
+        self._conv_update_out_shape(out_channels=self.in_shape[0])
+
+    # def _conv_update_out_shape(self):
+        # if self.in_shape is None:
+        #     self.out_shape = None
+        # else:
+        #     in_shape = self.in_shape
+        #     padding = self.config['padding_size'].value
+        #     dilation = self.config['dilation'].value
+        #     kernel_size = self.config['kernel_size'].value
+        #     stride = self.config['stride'].value
+        #     ceil_mode = self.config['ceil_mode'].value
+
+        #     out_shape_height = (in_shape[1] + 2*padding[0] - dilation[0] * (kernel_size[0] - 1) - 1) / stride[0] + 1
+        #     out_shape_width = (in_shape[2] + 2*padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) / stride[1] + 1
+        #     if ceil_mode:
+        #         out_shape_height = ceil(out_shape_height)
+        #         out_shape_width = ceil(out_shape_width)
+        #     else:
+        #         out_shape_height = floor(out_shape_height)
+        #         out_shape_width = floor(out_shape_width)
+
+        #     self.out_shape = (in_shape[0], out_shape_height, out_shape_width)
+
+    def _create_args(self):
+        self._args = [self.config['kernel_size'].value]
+        self._kwargs = {'stride' : self.config['stride'].value,
+                       'padding' : self._calc_padding_size(),
+                       'dilation' : self.config['dilation'].value,                      
+                       'ceil_mode' : self.config['ceil_mode'].value,
+                      }
+
+    def __repr__(self):
+        kernel_size = str(self.config['kernel_size'].value)
+        stride = str(self.config['stride'].value)        
+        repr_str = '{:12} {:14} {:8} {:8}'.format(self.module_name, 
+                                                  str(self.out_shape), 
+                                                  kernel_size,
+                                                  stride)
+        return repr_str        
+
+
+class AvgPool2dTmpl(ConvTemplate_):
+    config_data = {
+        'kernel_size': {
+            'default': Parameter((2, 2)),
+            'range': [(2, 2), (3, 3), (4, 4)]
+        },
+        'stride': {
+            'default': Parameter((2, 2)),
+            'range': [(1, 1), (2, 2)]
+        },
+        'padding': {
+            'default': Parameter(False),
+            'range': [True, False]
+        },
+        # ceil_mode=True doesn't work correctly TODO: report bug
+        'ceil_mode': {
+            'default': Parameter(False, learnable = False)
+        },
+        'count_include_pad': {
+            'default': Parameter(True),
+            'range': [True, False]
+        },
+    }
+
+    def __init__(self, in_shape=None, **kwargs):
+        self.module_name = 'AvgPool2d'
+        super().__init__(in_shape = in_shape, **kwargs)
+        # utils.print_nonprivate_properties(self)
+
+    def _update_out_shape(self):
+        self._conv_update_out_shape(out_channels=self.in_shape[0],
+                                    dilation=(1, 1))
+
+    # def _conv_update_out_shape(self):
+        # if self.in_shape is None:
+        #     self.out_shape = None
+        # else:
+        #     in_shape = self.in_shape
+        #     padding = self.config['padding_size'].value
+        #     kernel_size = self.config['kernel_size'].value
+        #     stride = self.config['stride'].value
+        #     ceil_mode = self.config['ceil_mode'].value
+
+        #     out_shape_height = (in_shape[1] + 2*padding[0] - kernel_size[0]) / stride[0] + 1
+        #     out_shape_width = (in_shape[2] + 2*padding[1] - kernel_size[1]) / stride[1] + 1
+        #     if ceil_mode:
+        #         out_shape_height = ceil(out_shape_height)
+        #         out_shape_width = ceil(out_shape_width)
+        #     else:
+        #         out_shape_height = floor(out_shape_height)
+        #         out_shape_width = floor(out_shape_width)
+
+        #     self.out_shape = (in_shape[0], out_shape_height, out_shape_width)
+
+    def _create_args(self):
+        self._args = [self.config['kernel_size'].value]
+        self._kwargs = {'stride' : self.config['stride'].value,
+                       'padding' : self._calc_padding_size(),
+                       'ceil_mode' : self.config['ceil_mode'].value,
+                       'count_include_pad' : self.config['count_include_pad'].value
+                      }
+
+    def __repr__(self):
+        kernel_size = str(self.config['kernel_size'].value)
+        stride = str(self.config['stride'].value)        
+        repr_str = '{:12} {:14} {:8} {:8}'.format(self.module_name, 
+                                                  str(self.out_shape), 
+                                                  kernel_size,
+                                                  stride)
+        return repr_str        
+
+
+class GlobalAvgPool2dTmpl(ModuleTemplate_):
+    config_data = {}
+
+    def __init__(self, in_shape=None):
+        self.module_name = 'AvgPool2d'
+        super().__init__(in_shape = in_shape)
+    
+    def _update_out_shape(self):
+        if self.in_shape is None:
+            self.out_shape = None
+        else:
+            self.out_shape = (self.in_shape[0], 1, 1)    # out_shape is (num_channels, 1, 1)
+
+    def _create_args(self):
+        # kernel_size = in_shape for AvgPool2d
+        self._args = [(self.in_shape[1], self.in_shape[2])]
+        self._kwargs = {}
+
+    def __repr__(self):
+        repr_str = '{:12} {:14}'.format('Global' + self.module_name, str(self.out_shape))
+        return repr_str        
+
 
 ######################### EX - SEQUENTIAL ########################
     
+
 class SequentialEx(nn.Sequential):    
     def __init__(self, in_shape, out_shape, *templates):
         self.in_shape = in_shape
         self.module_templates = list(templates)
-        self._set_template_shapes(in_shape, out_shape)
+        self._sync_template_shapes(in_shape, out_shape)
         self._instantiate_modules()
         super().__init__(*self.modules_instances)
         
@@ -762,7 +957,7 @@ class SequentialEx(nn.Sequential):
             mod_shape = '{:12}'.format(mod_shape)
             mod_str += mod_shape
 
-            # mod_params = sum(p.numel() for p in module.parameters() if p.requires_grad)
+            # mod_params = sum(p.numel() for p in module.config() if p.requires_grad)
             # params_str = '' + '{:3.1e}'.format(mod_params) if mod_params > 0 else ''
             # params_str = _addindent(params_str, 7)            
             # mod_str += params_str
@@ -782,20 +977,18 @@ class SequentialEx(nn.Sequential):
         main_str += ')'
         return main_str
     
-    def _set_template_shapes(self, in_shape, out_shape):        
+    def _sync_template_shapes(self, in_shape, out_shape):        
         for i, template in enumerate(self.module_templates):                        
             # first elem
             if i == 0:
-                template.set_in_shape(in_shape)
-                template.calc_out_shape()
+                template.in_shape = in_shape
             # last elem
             elif i == len(self.module_templates) - 1:
-                template.set_in_shape(previous_out_shape)
+                template.in_shape = previous_out_shape
                 template.set_out_shape(out_shape)
             # middle elem
             else:
-                template.set_in_shape(previous_out_shape)
-                template.calc_out_shape()            
+                template.in_shape = previous_out_shape
             previous_out_shape = template.out_shape
             self.module_templates[i] = template
             
@@ -809,24 +1002,26 @@ class SequentialEx(nn.Sequential):
             modules_instances.append(module)
         self.modules_instances = modules_instances
 
+
 ################ LAYER TEMPLATES ####################
 
-class LayerTemplate():
+
+class LayerTemplate_():
     '''
         Create Layer - main template followed by auxilaries:
-            Ex. Conv - DropOut - MaxPool - ReLU
+        Ex. Conv - DropOut - MaxPool - ReLU
         Two ways of creation:
-         - From preset of templates passed as args: 
+        - From preset of templates passed as args: 
          
             conv_layer = ConvLayerTmpl((3, 32, 32), tmpl1, tmpl2, tmpl3)
          
-         - Randomly generated  main template followed by auxilaries:
+        - Randomly generated  main template followed by auxilaries:
 
             conv_layer = ConvLayerTmpl((3, 32, 32))
             conv_layer.gen_rand_layer()
 
         The list of aux'es and probabilities of their generation must be listed in self.freq_dict.
-        All template parameters are generated randomly from internal lists of each
+        All template config are generated randomly from internal lists of each
         template.
         
         Upon creation only needs 'in_shape'. 'out_shape' is calculated (upon generation) or set from 
@@ -834,34 +1029,55 @@ class LayerTemplate():
         layer.in_shape -> tmpl1.in_shape -> tmpl2.in_shape = tmpl1.out_shape -> ... -> layer.out_shape = last_tmpl.out_shape
 
         If one of aux or main templates rendered zero in out_shape (ex. (32, 0, 0)), the flag
-        self.zero_shape is set and further template generation stops.
+        self.is_zero_shape is set and further template generation stops.
     '''
 
-    def __init__(self, in_shape, *templates):
+    freq_dict = {}
+
+    def __init__(self, in_shape=None, *templates):
         self.templates = list(templates)
-        self.in_shape = in_shape
-        self.out_shape = in_shape
-        self.zero_shape = False
+        self._in_shape = in_shape
+        self.out_shape = None
+        self.is_zero_shape = False
+        self.sync_shapes()
 
-        # if templates:
-        #     self._sync_shapes()            
+    @property
+    def in_shape(self):
+        return self._in_shape
+    
+    @in_shape.setter
+    def in_shape(self, in_shape):
+        self._in_shape = in_shape
+        self.sync_shapes()
 
-    def _sync_shapes(self):        
-        for tmpl in self.templates:
-            tmpl.set_in_shape(self.out_shape)
-            tmpl.calc_out_shape()
-            zero_shape = self._check_zero_shape(tmpl)
-            if zero_shape:
-                print(tmpl.module_name, tmpl.in_shape, tmpl.out_shape)
-                self.zero_shape = True
-            #     self.out_shape = next_in_shape
-            # else:
-            self.out_shape = tmpl.out_shape
+    def sync_shapes(self):        
+        """
+        Syncs the shapes of inner templates when layer
+
+        is not empty (contains templates) and in_shape is not None
+        """
         
-    def set_in_shape(self, in_shape):
-        self.in_shape = in_shape
-        self.out_shape = in_shape
+        if self.in_shape is None:
+            self.out_shape = None
+            return
+        if not self.templates:
+            return
         self._sync_shapes()
+
+    def _sync_shapes(self):
+        last_in_shape = self.in_shape
+        for tmpl in self.templates:
+            tmpl.in_shape = last_in_shape
+            if tmpl.is_zero_shape:
+                print(tmpl.module_name, tmpl.in_shape, tmpl.out_shape)
+                self.is_zero_shape = True
+            last_in_shape = tmpl.out_shape
+        self.out_shape = tmpl.out_shape
+
+    # def set_in_shape(self, in_shape):
+        # self.in_shape = in_shape
+        # self.out_shape = in_shape
+        # self.sync_shapes()
 
     def gen_rand_layer(self):
         self.templates = []
@@ -875,39 +1091,45 @@ class LayerTemplate():
         pass
 
     def _generate_aux_templates(self):
-        freq_dict = utils.shuffle_dict(self.freq_dict)    # children will override this
-        for tmpl_name in freq_dict:
-            tmpl_freq = freq_dict[tmpl_name]
-            if tmpl_freq > random.random():                
+        freq_dict = utils.shuffle_dict(self.freq_dict)
+        for tmpl_name in freq_dict:            
+            if tmpl_name == 'activation':
+                tmpl_name = random.choice(freq_dict['activation'])
                 self._generate_template(tmpl_name, in_shape = self.out_shape)
-                if self.zero_shape: break
-       
+                if self.is_zero_shape:
+                    break
+            else:
+                tmpl_freq = freq_dict[tmpl_name]
+                if tmpl_freq > random.random():
+                    self._generate_template(tmpl_name, in_shape = self.out_shape)
+                    if self.is_zero_shape:
+                        break
+
     def _generate_template(self, tmpl_name, in_shape):
         # appends template and updates self.out_shape
         tmpl = self._instantiate_template(tmpl_name, in_shape = in_shape)
-        tmpl.gen_params()
-        tmpl.calc_out_shape()
-        zero_shape = self._check_zero_shape(tmpl)
+        tmpl.gen_rand_config()
         # print(tmpl.module_name, tmpl.in_shape, tmpl.out_shape)
-
-        if zero_shape:
+        if tmpl.is_zero_shape:
             # print(tmpl.module_name + ': ZERO SHAPE', tmpl.out_shape)
-            self.zero_shape = True
+            self.is_zero_shape = True
             self.out_shape = in_shape
         else:
             self.templates.append(tmpl)
             self.out_shape = tmpl.out_shape
     
-    def _check_zero_shape(self, tmpl):
-        '''
-        Overwriten by children 1d or 2d
-        '''
-        return False
-
     def _instantiate_template(self, tmpl_name, **kwargs):
         klass = globals()[tmpl_name]
         template = klass(**kwargs)
         return template
+
+    def instantiate_layer(self):
+        module_instances = []
+        for tmpl in self.templates:
+            instance = tmpl.instantiate_module()
+            module_instances.append(instance)
+        return nn.Sequential(*module_instances)
+
 
     def __repr__(self):
         out_str = ''
@@ -916,64 +1138,60 @@ class LayerTemplate():
         return out_str        
 
 
-class ConvLayerTmpl(LayerTemplate):
+class ConvLayerTmpl(LayerTemplate_):
     '''
     Starts with main Conv2dTmpl template followed by combination of 
     auxilary templates from self.freq_dict
     '''
-    def __init__(self, in_shape, *templates):        
-        self.freq_dict = {'ReLUTmpl' : 1,       
+    def __init__(self, in_shape = None, *templates):        
+        self.freq_dict = {'activation' : ['ReLUTmpl', 'LeakyReLUTmpl', 'PReLUTmpl'],
                         'MaxPool2dTmpl': 0.5,
                         'BatchNorm2dTmpl': 0.5,
+                        'AvgPool2dTmpl': 0.5,
                         'Dropout2dTmpl': 0}
-
         super().__init__(in_shape, *templates)
             
     def _generate_main_template(self):
-        self._generate_template('Conv2dTmpl', in_shape = self.in_shape)        
-
-    def _check_zero_shape(self, tmpl):
-        '''
-        Shape check for 2d layers
-        '''
-        zero_shape = (tmpl.out_shape[1] < 1) or (tmpl.out_shape[2] < 1)
-        return zero_shape
+        self._generate_template('Conv2dTmpl', in_shape = self.in_shape)
 
 
-class LinLayerTmpl(LayerTemplate):
-    def __init__(self, in_shape, *templates):
-        self.freq_dict = {'ReLUTmpl' : 1,
+class LinLayerTmpl(LayerTemplate_):
+    def __init__(self, in_shape=None, *templates):
+        self.freq_dict = {'activation' : ['ReLUTmpl', 'LeakyReLUTmpl', 'PReLUTmpl'],
                           'Dropout2dTmpl': 0.5}
         super().__init__(in_shape, *templates)
 
     def _generate_main_template(self):
-        self._generate_template('LinearTmpl', in_shape = self.in_shape)        
-
-    def _check_zero_shape(self, tmpl):
-        '''
-        Shape check for 1d layers
-        '''
-        zero_shape = tmpl.out_shape < 1
-        return zero_shape
+        self._generate_template('LinearTmpl', in_shape = self.in_shape)
 
 
-class GapLayerTmpl(LayerTemplate):
+class LastLinLayerTmpl(LayerTemplate_):
+    def __init__(self, in_shape=None, *templates):
+        self.freq_dict = {}
+        super().__init__(in_shape, *templates)
+
+    def _generate_main_template(self):
+        self._generate_template('LinearTmpl', in_shape = self.in_shape)
+
+
+class GapLayerTmpl(LayerTemplate_):
     '''
         Global Average Pool layer. Single template
     '''
-    def __init__(self, in_shape, *templates):
-        super().__init__(in_shape, *templates)
+    def __init__(self, in_shape=None):
+        super().__init__(in_shape)
     
     def gen_rand_layer(self):
+        self.templates = []
         self._generate_main_template()
 
     def _generate_main_template(self):
         self._generate_template('GlobalAvgPool2dTmpl', in_shape = self.in_shape)
 
 
-class FlatLayerTmpl(LayerTemplate):
-    def __init__(self, in_shape, *templates):
-        super().__init__(in_shape, *templates)
+class FlatLayerTmpl(LayerTemplate_):
+    def __init__(self, in_shape=None):
+        super().__init__(in_shape)
     
     def gen_rand_layer(self):
         self._generate_main_template()
@@ -984,22 +1202,30 @@ class FlatLayerTmpl(LayerTemplate):
 
 ####################### MODEL TEMPLATE ##################
 
+
 class ModelTmpl():
     '''
-        Model created from layers
+        Model created from Layer templates
     '''
-    def __init__(self, in_shape = None, out_shape = None, *layers):
+    def __init__(self, in_shape=None, out_shape = None, *layers):
         self.in_shape = in_shape
         self.out_shape = out_shape
         self.layers = list(layers)
-        if layers:
-            self._sync_shapes()
+        self.sync_shapes()
+
+    def sync_shapes(self):
+        if self.in_shape is None:
+            self.out_shape = None
+            return
+        if not self.layers:
+            return
+        self._sync_shapes()
 
     def _sync_shapes(self):
         next_in_shape = self.in_shape
         for layer in self.layers:
-            layer.set_in_shape(next_in_shape)
-            if layer.zero_shape:
+            layer.in_shape = next_in_shape
+            if layer.is_zero_shape:
                 # print(layer, 'ZERO SHAPE')
                 self.layers.remove(layer)
             else:
@@ -1042,7 +1268,7 @@ class ModelTmpl():
     def set_conv_part(self, conv_part):
         self._del_conv_part()
         self._add_conv_part(conv_part)
-        self._sync_shapes()
+        self.sync_shapes()
 
     def _del_conv_part(self):
         for layer in reversed(self.layers):
@@ -1061,7 +1287,6 @@ class ModelTmpl():
                 lin_part.append(layer)
         return lin_part
 
-
     def __repr__(self):
         out_str = ''
         for layer in self.layers:
@@ -1071,37 +1296,54 @@ class ModelTmpl():
 
 class ModelTmpl_():
     '''
-        ModelTmpl created from templates
+        ModelTmpl created from Module templates. Last template must be linear.        
     '''
-    def __init__(self, in_shape = None, out_shape = None, *templates):        
+    def __init__(self, in_shape=None, out_shape = None, *templates):        
         self.in_shape = in_shape
         self.out_shape = out_shape
-        self.zero_shape = False
+        self.is_zero_shape = False
         self.templates = list(templates)
+        self.sync_shapes()
 
-        if templates:
-            self._sync_shapes()
+    def sync_shapes(self):
+        """
+        Syncs the shapes of inner templates when model is not empty:
 
-    def _sync_shapes(self):    
+         - contains templates
+         - in_shape and out_shape is not None
+        """
+        
+        if self.in_shape is None:
+            self.out_shape = None
+            return
+        if not self.templates:
+            return
+        self._sync_shapes()
+
+    def _sync_shapes(self):
+        if self.in_shape is None:
+            self.out_shape = None
+            return        
+        if not self.templates:
+            return
         next_in_shape = self.in_shape
         for tmpl in self.templates:
-            tmpl.set_in_shape(next_in_shape)
-            tmpl.calc_out_shape()
-            is_zero_shape = tmpl.check_zero_shape()
-            if is_zero_shape:
+            tmpl.in_shape = next_in_shape
+            tmpl._update_out_shape()
+            if tmpl._is_zero_shape():
                 print(tmpl.module_name, tmpl.in_shape, tmpl.out_shape)
                 self.templates.remove(tmpl)
             else:
                 next_in_shape = tmpl.out_shape
         self._set_last_shape()
-    
+
     def _set_last_shape(self):
-        self.templates[-1].set_out_shape(self.out_shape)        
+        self.templates[-1].set_out_shape(self.out_shape)
         
-    def set_shapes(self, in_shape, out_shape):
-        self.in_shape = in_shape
-        self.out_shape = out_shape
-        self._sync_shapes()
+    # def set_shapes(self, in_shape, out_shape):
+        # self.in_shape = in_shape
+        # self.out_shape = out_shape
+        # self.sync_shapes()
     
     def instantiate_model(self):
         mods = []

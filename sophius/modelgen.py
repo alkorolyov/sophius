@@ -1,5 +1,5 @@
 import torch.nn as nn
-from sophius.templates import ConvLayerTmpl, FlatLayerTmpl, LinLayerTmpl, LinearTmpl, GapLayerTmpl, ModelTmpl
+from sophius.templates import ConvLayerTmpl, FlatLayerTmpl, LinLayerTmpl, GapLayerTmpl, LastLinLayerTmpl, ModelTmpl
 import random
 
 ################ MODEL GENERATOR ####################
@@ -24,8 +24,8 @@ class ModelGenerator_():
             conv.gen_rand_layer()
             self.layers.append(conv)
             next_in_shape = conv.out_shape
-            if conv.zero_shape: 
-                conv.zero_shape = False
+            if conv.is_zero_shape: 
+                conv.is_zero_shape = False
                 break
 
     def _gen_gap_layer(self):
@@ -52,8 +52,8 @@ class ModelGenerator_():
 
     def _gen_lastlin_layer(self):
         next_in_shape = self.layers[-1].in_shape    # next shape - previous layer shape        
-        last_tmpl = LinearTmpl(next_in_shape, self.out_shape)
-        last_layer = LinLayerTmpl(next_in_shape, last_tmpl)
+        last_layer = LastLinLayerTmpl(next_in_shape)
+        last_layer.gen_rand_layer()
         self.layers.append(last_layer)
 
     def generate_model(self):
