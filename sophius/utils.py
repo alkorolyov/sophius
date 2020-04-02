@@ -14,4 +14,10 @@ def print_nonprivate_properties(obj):
     for k, v in vars(obj).items():
         if not k.startswith('_'):
             print('%-20s %-5s %s' % (k, type(v), v))
-    return            
+    return
+
+def print_properties(obj):
+    print('%-20s %s' % ('name', obj.__class__.__name__))
+    for k, v in vars(obj).items():
+        print('%-20s %-5s %s' % (k, type(v), v))
+    return    
