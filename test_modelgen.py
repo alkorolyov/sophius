@@ -6,6 +6,7 @@ import pytest
 import numpy as np
 from sophius.modelgen import *
 
+# pylint: skip-file
 def test_100_models_convgap():
     for _ in range(100):
         in_shape = tuple(np.random.randint(2, 10, size = 3))
