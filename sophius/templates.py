@@ -471,6 +471,7 @@ class LeakyReLUTmpl(ModuleTemplate_):
             'negative_slope' : self.config['negative_slope'].value,
             'inplace' : self.config['inplace'].value
         }
+
     def __repr__(self):
         negative_slope = self.config['negative_slope'].value
         repr_str = '{:12} {:14} {:8}'.format( self.module_name,
