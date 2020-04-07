@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
+
 from torch.utils.data.sampler import Sampler, SubsetRandomSampler
 from torch.utils.data import DataLoader
 import torchvision.datasets as dset
@@ -14,7 +15,7 @@ def cifar_to_gpu(cifar):
     Output:
         cifar_gpu (dataset): cifar dataset in GPU memory
     """    
-    loader = DataLoader(cifar, batch_size=512, num_workers=2,)    
+    loader = DataLoader(cifar, batch_size=512, num_workers=2)    
     y = torch.empty(0, dtype = torch.int64)
     x = torch.empty(0, dtype = torch.float32)
     for batch in loader:
@@ -24,7 +25,8 @@ def cifar_to_gpu(cifar):
                  y.type(torch.cuda.LongTensor)] 
     return cifar_gpu
 
-def get_loader_gpu(cifar_gpu, num_val):
+
+def get_loader_gpu(cifar_gpu, num_val=1024, batch_size=512):
     """Splits dataset into training set followed by validation set by specifying validation set size,
     training size = dataset size - validation size. Then from training set randomly subsamples
      the small training set (same size as validation set).
@@ -55,7 +57,7 @@ def get_loader_gpu(cifar_gpu, num_val):
                                 batch_size=64, 
                                 sampler=ChunkSampler(num_val, num_train))
     loader_train_gpu = DataLoaderGPU(cifar_gpu,
-                                    batch_size=2048,
+                                    batch_size=batch_size,
                                     sampler=ChunkSampler(num_train))
     loader_gpu = {'val' : loader_val_gpu,
                 'train' : loader_train_gpu,
@@ -63,7 +65,26 @@ def get_loader_gpu(cifar_gpu, num_val):
     return loader_gpu
 
 
-class DataLoaderGPU(object):
+def get_loader(cifar, num_val=1024, batch_size=512):
+    num_train = len(cifar) - num_val
+    num_train_small = num_val
+
+    loader_train_small = DataLoader(cifar, 
+                                batch_size=64, 
+                                sampler=SubsetRandomSampler(np.random.randint(num_train, size=num_train_small)))
+    loader_val = DataLoader(cifar, 
+                            batch_size=64, 
+                            sampler=ChunkSampler(num_val, num_train))
+    loader_train = DataLoader(cifar,    
+                                batch_size=batch_size,
+                                sampler=ChunkSampler(num_train))
+    loader = {'val' : loader_val,
+                'train' : loader_train,
+                'train_small' : loader_train_small}    
+    return loader
+
+
+class DataLoaderGPU():
     """ Simple data loader from GPU. 
     Arguments:
         dataset_gpu (dataset): dataset loaded to GPU
@@ -80,7 +101,7 @@ class DataLoaderGPU(object):
         return self
 
     def __next__(self):
-        index = self._next_index()  # may raise StopIteration
+        index = self._next_index()  # will raise StopIteration
         data = self._next_data(index)
         return data
 
@@ -88,7 +109,7 @@ class DataLoaderGPU(object):
         index = []
         for _ in range(self.batch_size):
             index.append(next(self._sampler_iter))
-        return torch.tensor(index).type(torch.cuda.LongTensor)
+        return torch.tensor(index).type(torch.cuda.LongTensor) # pylint: disable=not-callable
     
     def _next_data(self, index):
         x = torch.index_select(self.dataset[0], 0, index)
@@ -96,23 +117,8 @@ class DataLoaderGPU(object):
         data = (x, y)
         return data
 
-
-        # if self.idx <= self.max_idx:            
-        #     if self.idx + self.batch_size < self.max_idx:
-        #         x = torch.narrow(self.dataset[0], 0, self.idx, self.batch_size)
-        #         y = torch.narrow(self.dataset[1], 0, self.idx, self.batch_size)
-        #     else:
-        #         size = self.max_idx - self.idx
-        #         x = torch.narrow(self.dataset[0], 0, self.idx, size)
-        #         y = torch.narrow(self.dataset[1], 0, self.idx, size)                
-        #     result = (x, y)
-        #     self.idx +=  self.batch_size            
-        #     return result
-        # else:            
-        #     raise StopIteration
-
     def __len__(self):
-        return self.sampler.num_samples
+        return len(self.sampler)
 
 
 class ChunkSampler(Sampler):

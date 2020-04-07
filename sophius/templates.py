@@ -18,7 +18,7 @@ class Parameter():
         - learnable (bool): is going to change during genetic search
         - on_change (function): triggers when parameter.value changes 
     """
-    def __init__(self, value, learnable = True):
+    def __init__(self, value, learnable=True):
         self.value = value
         self.learnable = learnable
 
@@ -601,10 +601,10 @@ class ConvTemplate_(ModuleTemplate_):
 
     def _conv_update_out_shape(self,
                                out_channels=None,
-                               kernel_size = None,
-                               stride = None,
-                               dilation = None,                            
-                               ceil_mode = None):
+                               kernel_size=None,
+                               stride=None,
+                               dilation=None,                            
+                               ceil_mode=None):
         """
         General method to calculate convolution output shape.
         
@@ -1144,7 +1144,7 @@ class ConvLayerTmpl(LayerTemplate_):
     Starts with main Conv2dTmpl template followed by combination of 
     auxilary templates from self.freq_dict
     '''
-    def __init__(self, in_shape = None, *templates):        
+    def __init__(self, in_shape=None, *templates):        
         self.freq_dict = {'activation' : ['ReLUTmpl', 'LeakyReLUTmpl', 'PReLUTmpl'],
                         'MaxPool2dTmpl': 0.5,
                         'BatchNorm2dTmpl': 0.5,
@@ -1208,7 +1208,7 @@ class ModelTmpl():
     '''
         Model created from Layer templates
     '''
-    def __init__(self, in_shape=None, out_shape = None, *layers):
+    def __init__(self, in_shape=None, out_shape=None, *layers):
         self.in_shape = in_shape
         self.out_shape = out_shape
         self.layers = list(layers)
@@ -1299,7 +1299,7 @@ class ModelTmpl_():
     '''
         ModelTmpl created from Module templates. Last template must be linear.        
     '''
-    def __init__(self, in_shape=None, out_shape = None, *templates):        
+    def __init__(self, in_shape=None, out_shape=None, *templates):        
         self.in_shape = in_shape
         self.out_shape = out_shape
         self.is_zero_shape = False

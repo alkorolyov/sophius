@@ -1,12 +1,14 @@
-import sophius
-import torch
-import torch.nn as nn
 import random
 import pytest
+
 import numpy as np
+import torch
+import torch.nn as nn
+
+import sophius
 from sophius.modelgen import ConvGAPModelGenerator, ConvFCModelGenerator
 
-# pylint: skip-file
+
 def test_model_convgap():
     in_shape = tuple(np.random.randint(2, 10, size = 3))
     out_shape = np.random.randint(1, 10)

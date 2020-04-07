@@ -1,16 +1,23 @@
-import random, gc, bitmath, torch
+import random
+import gc
 from functools import reduce
 import operator as op
+
+import bitmath
+import torch
+
 
 def reset(m):
     if hasattr(m, 'reset_parameters'):
         m.reset_parameters()
+
 
 def shuffle_dict(d):
     l = list(d.items())
     random.shuffle(l)
     d = dict(l)
     return d
+
 
 def print_nonprivate_properties(obj):
     print('%-20s %s' % ('name', obj.__class__.__name__))
@@ -19,11 +26,13 @@ def print_nonprivate_properties(obj):
             print('%-20s %-5s %s' % (k, type(v), v))
     return
 
+
 def print_properties(obj):
     print('%-20s %s' % ('name', obj.__class__.__name__))
     for k, v in vars(obj).items():
         print('%-20s %-5s %s' % (k, type(v), v))
     return
+
 
 def format_time(sec):
     time_str = ''
@@ -46,6 +55,7 @@ def format_time(sec):
     
     return time_str
 
+
 def format_number(num):
     if num // 10 ** 6 > 0:
         return str(round(num / 10 ** 6, 2)) + 'M'
@@ -53,6 +63,7 @@ def format_number(num):
         return str(round(num / 10 ** 3, 2)) + 'k'
     else:
         return str(num)
+
 
 def get_tensors_memory():
     tensors_list = []

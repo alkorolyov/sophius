@@ -1,6 +1,8 @@
-import torch.nn as nn
-from sophius.templates import ConvLayerTmpl, FlatLayerTmpl, LinLayerTmpl, GapLayerTmpl, LastLinLayerTmpl, ModelTmpl
 import random
+
+import torch.nn as nn
+
+from sophius.templates import ConvLayerTmpl, FlatLayerTmpl, LinLayerTmpl, GapLayerTmpl, LastLinLayerTmpl, ModelTmpl
 
 ################ MODEL GENERATOR ####################
 

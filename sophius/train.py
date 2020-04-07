@@ -1,9 +1,11 @@
+import time
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import time
-import numpy as np
 import matplotlib.pyplot as plt
+
 import sophius.utils as utils
 
 def train_express_gpu(model = None,
@@ -51,6 +53,7 @@ def train_express_gpu(model = None,
     
     return time_elapsed, val_acc, train_acc
 
+
 def check_accuracy(model, loader):
     num_correct = 0
     num_samples = 0
@@ -66,6 +69,7 @@ def check_accuracy(model, loader):
     acc = float(num_correct) / num_samples
 #     print('Got %d / %d correct (%.2f)' % (num_correct, num_samples, 100 * acc))
     return acc
+
 
 def check_accuracy_gpu(model, loader):
     num_correct = 0
