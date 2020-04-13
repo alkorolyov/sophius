@@ -53,6 +53,47 @@ def train_express_gpu(model = None,
     
     return time_elapsed, val_acc, train_acc
 
+def validate_model(model=None, 
+                   num_iter=1, 
+                   num_epoch=1,
+                   train=False,
+                   milestones=[],
+                   loader=None, 
+                   verbose=False):
+
+    val_acc_list = []
+    train_acc_list = []
+    t_list = []
+    
+    for i in range(num_iter):      
+        t, val_acc, train_acc = train_express_gpu(model = model,
+                                            loader = loader,
+                                            train = train,
+                                            milestones = milestones,
+                                            num_epoch = num_epoch,
+                                            verbose = verbose)
+        val_acc_list.append(val_acc)
+        train_acc_list.append(train_acc)
+        t_list.append(t)
+    
+    val_mean = np.mean(val_acc_list)
+    train_mean = np.mean(train_acc_list)
+    val_std = np.std(val_acc_list)
+    train_std = np.std(train_acc_list)
+    t_mean = np.mean(t_list)
+    
+    # torch.cuda.empty_cache()
+    # del model
+    
+    if train:
+        if verbose:
+            print('%d iters: %.1fs \nval: %.3f +- %.3f train: %.3f +- %.3f' % (num_iter, t_mean, val_mean, val_std, train_mean, train_std))
+        return t_mean, val_mean, train_mean
+    else:
+        if verbose:
+            print('%d iters: %s \nval: %.3f +- %.3f' % (num_iter, format_time(t_mean), val_mean, val_std))
+        return t_mean, val_mean
+
 
 def check_accuracy(model, loader):
     num_correct = 0
