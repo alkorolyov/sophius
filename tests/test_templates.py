@@ -81,7 +81,7 @@ def test_config_get_random():
     }
     random.seed(0)
     config = ConfigGenerator(template).get_random()
-    print(config)
+    # print(config)
     assert config['option_1'].value == 'string'
     assert config['option_1'].learnable == True
     assert config['option_2'].value == 0
@@ -224,7 +224,7 @@ def test_relu_tmpl():
     result = torch.tensor([[  0, 0],
                         [0.1, 1]], dtype=torch.float32)
     dist = torch.dist(output, result)
-    print(dist)
+    # print(dist)
     assert dist == torch.tensor(0)
 
 def test_leakyrelu_tmpl():
@@ -236,7 +236,7 @@ def test_leakyrelu_tmpl():
     result = torch.tensor([[  0, 0],
                         [0.1, 1]], dtype=torch.float32)
     dist = torch.dist(output, result)
-    print(dist)
+    # print(dist)
     assert dist <= torch.tensor(0.2)
 
 def test_prelu_tmpl():

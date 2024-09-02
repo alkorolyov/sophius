@@ -399,7 +399,7 @@ class LinearTmpl(ModuleTemplate_):
 
     def _create_args(self):
         self._args = [self.in_shape, self.config['out_features'].value]
-        self._kwargs = {'bias' : self.config['bias'].value}
+        self._kwargs = {'bias': self.config['bias'].value}
 
 
 class BatchNorm2dTmpl(ModuleTemplate_):
@@ -455,7 +455,7 @@ class LeakyReLUTmpl(ModuleTemplate_):
     config_data = {
         'negative_slope': {
             'default': Parameter(0.1),
-            'range': [0.1, 0.01 , 0.001]
+            'range': [0.1, 0.01, 0.001]
         },
         'inplace': {
             'default': Parameter(False, learnable=False)
@@ -589,7 +589,7 @@ class ConvTemplate_(ModuleTemplate_):
             'range': [True, False]
         },
         'dilation': {
-            'default': Parameter( (1, 1) )
+            'default': Parameter((1, 1))
         },
         'ceil_mode': {
             'default': Parameter(False)
@@ -998,7 +998,7 @@ class SequentialEx(nn.Sequential):
         modules_instances = []
         for template in self.module_templates:             
             # debug info
-            print(template.module_name, 'in_shape:', template.in_shape, 'out_shape:', template.out_shape)
+            # print(template.module_name, 'in_shape:', template.in_shape, 'out_shape:', template.out_shape)
             module = template.instantiate_module()
             module.in_shape = template.in_shape
             modules_instances.append(module)
@@ -1010,7 +1010,7 @@ class SequentialEx(nn.Sequential):
 
 class LayerTemplate_():
     '''
-        Create Layer - main template followed by auxilaries:
+        Create Layer - main module template followed by auxilaries:
         Ex. Conv - DropOut - MaxPool - ReLU
         Two ways of creation:
         - From preset of templates passed as args: 
@@ -1071,7 +1071,7 @@ class LayerTemplate_():
         for tmpl in self.templates:
             tmpl.in_shape = last_in_shape
             if tmpl.is_zero_shape:
-                print(tmpl.module_name, tmpl.in_shape, tmpl.out_shape)
+                # print(tmpl.module_name, tmpl.in_shape, tmpl.out_shape)
                 self.is_zero_shape = True
             last_in_shape = tmpl.out_shape
         self.out_shape = tmpl.out_shape
@@ -1333,7 +1333,8 @@ class ModelTmpl_:
             tmpl.in_shape = next_in_shape
             tmpl._update_out_shape()
             if tmpl._is_zero_shape():
-                print(tmpl.module_name, tmpl.in_shape, tmpl.out_shape)
+                # debug info
+                # print(tmpl.module_name, tmpl.in_shape, tmpl.out_shape)
                 self.templates.remove(tmpl)
             else:
                 next_in_shape = tmpl.out_shape
