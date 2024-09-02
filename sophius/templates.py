@@ -48,7 +48,7 @@ class ConfigDict(dict):
         raise NotImplementedError
 
 
-class ConfigGenerator():
+class ConfigGenerator:
     """
     Generates config for a given template instance.
     """
@@ -188,7 +188,27 @@ class ModuleTemplate_():
                 # create pytorch model
                 models.append(nn.Sequential(*mods))
     '''
+
     config_data = {}
+    '''        
+    Contains as set of keyword parameters for module. The Parameter type defines if the parameters 
+    is learnable or not. If learnable (True by default) then a range of possible values should be
+    provided.
+
+    Example for LinearModule Template:
+
+    config_data = {
+        'out_features': {
+            'default': Parameter(256),
+            'range': [32, 64, 128, 256, 512, 1024, 2048, 4096]
+        },
+        'bias': {
+            'default': Parameter(True, learnable=False)
+        }
+    }
+    '''
+
+    # pytorch module name
     module_name = None
 
     def __init__(self, in_shape=None, **kwargs):
@@ -201,6 +221,7 @@ class ModuleTemplate_():
             Optional arguments:
             - kwargs (dict): specific config for each module as kwargs, ex: kernel_size = (3, 3)
         '''
+        self.name = type(self).__name__
         self._in_shape = in_shape
         self._config = ConfigGenerator(self).get(**kwargs)
         # config change handlers
@@ -289,7 +310,18 @@ class ModuleTemplate_():
 
     def gen_rand_config(self):
         self.config = ConfigGenerator(self).get_random()
-    
+
+    def get_learnable_params(self):
+        """
+        Returns a list of learnable params
+        """
+        res = {}
+        for k, v in self.config_data.items():
+            if v.get('default').learnable:
+                res[k] = self.config[k]
+        return res
+
+
     def instantiate_module(self):
         """
         Returns an instance of PyTorch module from template.
@@ -301,7 +333,7 @@ class ModuleTemplate_():
         """
         # in_type = type(self.in_shape)
         # if (in_type is int) or (in_type is tuple):
-        self._create_args()
+        self._create_torch_args()
         nn_instance = globals()['nn']
         klass = getattr(nn_instance, self.module_name)
         instance = klass(*self._args, **self._kwargs)
@@ -309,11 +341,13 @@ class ModuleTemplate_():
         # else:
             # raise TypeError("in_shape should be int or tuple, instead {}".format(in_type))
 
-    def _create_args(self):
+    def _create_torch_args(self):
         '''
-        Children ovewrite this.
+        Children overwrite this.
 
         Creates arguments from self.config for pytorch Module class
+        Because sometimes there is no direct correspond between Template args
+        and Pytorch Module args.
         
         Example for pytorch Linear(in_shape, features, bias = True):
             self._args = [self.in_shape, self.out_shape]
@@ -365,7 +399,7 @@ class ModuleTemplate_():
 
 class LinearTmpl(ModuleTemplate_):
 
-    config_data = {        
+    config_data = {
         'out_features': {
             'default': Parameter(256),
             'range': [32, 64, 128, 256, 512, 1024, 2048, 4096]
@@ -397,7 +431,7 @@ class LinearTmpl(ModuleTemplate_):
         else:
             self.flops = (2 * self.in_shape - 1) * self.out_shape
 
-    def _create_args(self):
+    def _create_torch_args(self):
         self._args = [self.in_shape, self.config['out_features'].value]
         self._kwargs = {'bias': self.config['bias'].value}
 
@@ -423,7 +457,7 @@ class BatchNorm2dTmpl(ModuleTemplate_):
         super().__init__(in_shape = in_shape, **kwargs)
         # utils.print_nonprivate_properties(self)
     
-    def _create_args(self):
+    def _create_torch_args(self):
         self._args = [self.in_shape[0]]
         self._kwargs = {
             'eps' : self.config['eps'].value,
@@ -444,7 +478,7 @@ class ReLUTmpl(ModuleTemplate_):
         self.module_name = 'ReLU'
         super().__init__(in_shape = in_shape, **kwargs)
 
-    def _create_args(self):
+    def _create_torch_args(self):
         self._args = []
         self._kwargs = {
             'inplace' : self.config['inplace'].value
@@ -466,7 +500,7 @@ class LeakyReLUTmpl(ModuleTemplate_):
         self.module_name = 'LeakyReLU'
         super().__init__(in_shape = in_shape, **kwargs)
         
-    def _create_args(self):
+    def _create_torch_args(self):
         self._args = []
         self._kwargs = {
             'negative_slope' : self.config['negative_slope'].value,
@@ -496,7 +530,7 @@ class PReLUTmpl(ModuleTemplate_):
         self.module_name = 'PReLU'
         super().__init__(in_shape = in_shape, **kwargs)
         
-    def _create_args(self):        
+    def _create_torch_args(self):
         if self.config['all_channels'].value:
             if type(self.in_shape) is int:
                 num_channels = self.in_shape
@@ -511,22 +545,22 @@ class PReLUTmpl(ModuleTemplate_):
         }
 
 
-class Dropout2dTmpl(ModuleTemplate_):
+class DropoutTmpl(ModuleTemplate_):
     config_data = {
         'p': {
             'default': Parameter(0.75),
-            'range': np.linspace(0.05, 0.95, num = 19)
+            'range': list(np.linspace(0.05, 0.95, num=19))
         },
         'inplace': {
-            'default': Parameter(True, learnable=False)
+            'default': Parameter(False, learnable=False)
         }
     }
 
     def __init__(self, in_shape=None, **kwargs):
-        self.module_name = 'Dropout2d'
-        super().__init__(in_shape = in_shape, **kwargs)
+        super().__init__(in_shape=in_shape, **kwargs)
+        self.module_name = 'Dropout'
     
-    def _create_args(self):
+    def _create_torch_args(self):
         self._args = [self.config['p'].value]
         self._kwargs = {}
 
@@ -536,6 +570,12 @@ class Dropout2dTmpl(ModuleTemplate_):
                                         str(self.out_shape),
                                         '(' + str(p) + ')' )
         return repr_str
+
+
+class Dropout2dTmpl(DropoutTmpl):
+    def __init__(self, in_shape=None, **kwargs):
+        super().__init__(in_shape=in_shape, **kwargs)
+        self.module_name = 'Dropout2d'
 
 
 class FlattenTmpl(ModuleTemplate_):
@@ -553,7 +593,7 @@ class FlattenTmpl(ModuleTemplate_):
                 self.out_shape *= dim
     
     def instantiate_module(self):
-        self._create_args()
+        self._create_torch_args()
         klass = globals()[self.module_name]
         instance = klass(*self._args, **self._kwargs)
         return instance
@@ -664,7 +704,7 @@ class Conv2dTmpl(ConvTemplate_):
     config_data = {
         'out_channels': {
             'default': Parameter(32),
-            'range': [8, 16, 32, 64, 96, 128, 192, 256]
+            'range': [8, 16, 32, 64, 96, 128, 192]
         },
         'kernel_size': {
             'default': Parameter((3, 3)),
@@ -679,16 +719,16 @@ class Conv2dTmpl(ConvTemplate_):
             'range': [True, False]
         },
         'padding_mode': {
-            'default': Parameter('zeros', learnable = False)
+            'default': Parameter('zeros', learnable=False)
         },
         'dilation': {
-            'default': Parameter((1, 1), learnable = False)
+            'default': Parameter((1, 1), learnable=False)
         },
         'groups': {
-            'default': Parameter(1, learnable = False)
+            'default': Parameter(1, learnable=False)
         },
         'bias': {
-            'default': Parameter(True, learnable = False)
+            'default': Parameter(True, learnable=False)
         }
     }
 
@@ -738,17 +778,20 @@ class Conv2dTmpl(ConvTemplate_):
             self.flops = (2 * kernel[0] * kernel[1] - 1) * self.in_shape[0] * \
                 self.out_shape[0] * self.out_shape[1] * self.out_shape[2]
         
-    def _create_args(self):
-        self._args = [self.in_shape[0],
-                     self.out_shape[0],
-                     self.config['kernel_size'].value]
-        self._kwargs = {'stride' : self.config['stride'].value,
-                       'padding' : self._calc_padding_size(),
-                       'dilation' : self.config['dilation'].value,
-                       'groups' : self.config['groups'].value,
-                       'bias' : self.config['bias'].value,
-                       'padding_mode' : self.config['padding_mode'].value,
-                      }
+    def _create_torch_args(self):
+        self._args = [
+            self.in_shape[0],
+            self.out_shape[0],
+            self.config['kernel_size'].value
+        ]
+        self._kwargs = {
+            'stride': self.config['stride'].value,
+            'padding': self._calc_padding_size(),
+            'dilation': self.config['dilation'].value,
+            'groups': self.config['groups'].value,
+            'bias': self.config['bias'].value,
+            'padding_mode': self.config['padding_mode'].value,
+        }
 
     def __repr__(self):
         kernel_size = str(self.config['kernel_size'].value)
@@ -817,7 +860,7 @@ class MaxPool2dTmpl(ConvTemplate_):
 
         #     self.out_shape = (in_shape[0], out_shape_height, out_shape_width)
 
-    def _create_args(self):
+    def _create_torch_args(self):
         self._args = [self.config['kernel_size'].value]
         self._kwargs = {'stride' : self.config['stride'].value,
                        'padding' : self._calc_padding_size(),
@@ -889,7 +932,7 @@ class AvgPool2dTmpl(ConvTemplate_):
 
         #     self.out_shape = (in_shape[0], out_shape_height, out_shape_width)
 
-    def _create_args(self):
+    def _create_torch_args(self):
         self._args = [self.config['kernel_size'].value]
         self._kwargs = {'stride' : self.config['stride'].value,
                        'padding' : self._calc_padding_size(),
@@ -912,7 +955,7 @@ class GlobalAvgPool2dTmpl(ModuleTemplate_):
 
     def __init__(self, in_shape=None):
         self.module_name = 'AvgPool2d'
-        super().__init__(in_shape = in_shape)
+        super().__init__(in_shape=in_shape)
     
     def _update_out_shape(self):
         if self.in_shape is None:
@@ -920,7 +963,7 @@ class GlobalAvgPool2dTmpl(ModuleTemplate_):
         else:
             self.out_shape = (self.in_shape[0], 1, 1)    # out_shape is (num_channels, 1, 1)
 
-    def _create_args(self):
+    def _create_torch_args(self):
         # kernel_size = in_shape for AvgPool2d
         self._args = [(self.in_shape[1], self.in_shape[2])]
         self._kwargs = {}
@@ -1160,7 +1203,7 @@ class ConvLayerTmpl(LayerTemplate_):
 class LinLayerTmpl(LayerTemplate_):
     def __init__(self, in_shape=None, *templates):
         self.freq_dict = {'activation': ['ReLUTmpl', 'LeakyReLUTmpl', 'PReLUTmpl'],
-                          'Dropout2dTmpl': 0.5}
+                          'DropoutTmpl': 0.5}
         super().__init__(in_shape, *templates)
 
     def _generate_main_template(self):
@@ -1300,7 +1343,7 @@ class ModelTmpl_:
     '''
         ModelTmpl created from Module templates. Last template must be linear.        
     '''
-    def __init__(self, in_shape=None, out_shape=None, *templates):        
+    def __init__(self, in_shape=None, out_shape=None, *templates):
         self.in_shape = in_shape
         self.out_shape = out_shape
         self.is_zero_shape = False
