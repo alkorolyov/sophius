@@ -12,7 +12,7 @@ class Flatten(nn.Module):
         return x.view(N, -1)  # "flatten" the C * H * W values into a single vector per image
 
 
-class Parameter():
+class Parameter:
     """         
         - value (same type): value of parameter
         - learnable (bool): is going to change during genetic search
@@ -30,6 +30,7 @@ class Parameter():
     def on_change(self):
         # override this
         pass
+        # raise NotImplementedError
 
     def __repr__(self):
         repr_str = str(self.value)
@@ -44,7 +45,7 @@ class ConfigDict(dict):
                 
     def on_change(self):
         # override this
-        pass
+        raise NotImplementedError
 
 
 class ConfigGenerator():
@@ -322,7 +323,7 @@ class ModuleTemplate_():
         self._args = []
         self._kwargs = {}
 
-    # def gen_hash(self):
+    # def __hash__(self):
         # # module name to number:
         # hash_str = ''
         # module_ind = params_range_dict['module_name'].index(self.module_name)
@@ -370,7 +371,7 @@ class LinearTmpl(ModuleTemplate_):
             'range': [32, 64, 128, 256, 512, 1024, 2048, 4096]
         },
         'bias': {
-            'default': Parameter(True, learnable = False)
+            'default': Parameter(True, learnable=False)
         }
     }
     
@@ -404,16 +405,16 @@ class LinearTmpl(ModuleTemplate_):
 class BatchNorm2dTmpl(ModuleTemplate_):
     config_data = {
         'eps': {
-            'default': Parameter(1e-5, learnable = False)
+            'default': Parameter(1e-5, learnable=False)
         },
         'momentum': {
-            'default': Parameter(0.1, learnable = False)
+            'default': Parameter(0.1, learnable=False)
         },
         'affine': {
-            'default': Parameter(True, learnable = False)
+            'default': Parameter(True, learnable=False)
         },
         'track_running_stats': {
-            'default': Parameter(True, learnable = False)
+            'default': Parameter(True, learnable=False)
         }
     }
 
@@ -435,7 +436,7 @@ class BatchNorm2dTmpl(ModuleTemplate_):
 class ReLUTmpl(ModuleTemplate_):
     config_data = {
         'inplace': {
-            'default': Parameter(True, learnable=False)
+            'default': Parameter(False, learnable=False)
         }
     }
 
@@ -457,7 +458,7 @@ class LeakyReLUTmpl(ModuleTemplate_):
             'range': [0.1, 0.01 , 0.001]
         },
         'inplace': {
-            'default': Parameter(True, learnable=False)
+            'default': Parameter(False, learnable=False)
         }
     }
 
@@ -850,7 +851,7 @@ class AvgPool2dTmpl(ConvTemplate_):
         },
         # ceil_mode=True doesn't work correctly TODO: report bug
         'ceil_mode': {
-            'default': Parameter(False, learnable = False)
+            'default': Parameter(False, learnable=False)
         },
         'count_include_pad': {
             'default': Parameter(True),
@@ -1090,19 +1091,20 @@ class LayerTemplate_():
         Children should overwrite this method
         '''
         pass
+        # raise NotImplementedError
 
     def _generate_aux_templates(self):
         freq_dict = utils.shuffle_dict(self.freq_dict)
-        for tmpl_name in freq_dict:            
+        for tmpl_name in freq_dict:
             if tmpl_name == 'activation':
                 tmpl_name = random.choice(freq_dict['activation'])
-                self._generate_template(tmpl_name, in_shape = self.out_shape)
+                self._generate_template(tmpl_name, in_shape=self.out_shape)
                 if self.is_zero_shape:
                     break
             else:
                 tmpl_freq = freq_dict[tmpl_name]
                 if tmpl_freq > random.random():
-                    self._generate_template(tmpl_name, in_shape = self.out_shape)
+                    self._generate_template(tmpl_name, in_shape=self.out_shape)
                     if self.is_zero_shape:
                         break
 
@@ -1131,7 +1133,6 @@ class LayerTemplate_():
             module_instances.append(instance)
         return nn.Sequential(*module_instances)
 
-
     def __repr__(self):
         out_str = ''
         for tmpl in self.templates:
@@ -1145,7 +1146,7 @@ class ConvLayerTmpl(LayerTemplate_):
     auxilary templates from self.freq_dict
     '''
     def __init__(self, in_shape=None, *templates):        
-        self.freq_dict = {'activation' : ['ReLUTmpl', 'LeakyReLUTmpl', 'PReLUTmpl'],
+        self.freq_dict = {'activation': ['ReLUTmpl', 'LeakyReLUTmpl', 'PReLUTmpl'],
                         'MaxPool2dTmpl': 0.5,
                         'BatchNorm2dTmpl': 0.5,
                         'AvgPool2dTmpl': 0.5,
@@ -1158,12 +1159,12 @@ class ConvLayerTmpl(LayerTemplate_):
 
 class LinLayerTmpl(LayerTemplate_):
     def __init__(self, in_shape=None, *templates):
-        self.freq_dict = {'activation' : ['ReLUTmpl', 'LeakyReLUTmpl', 'PReLUTmpl'],
+        self.freq_dict = {'activation': ['ReLUTmpl', 'LeakyReLUTmpl', 'PReLUTmpl'],
                           'Dropout2dTmpl': 0.5}
         super().__init__(in_shape, *templates)
 
     def _generate_main_template(self):
-        self._generate_template('LinearTmpl', in_shape = self.in_shape)
+        self._generate_template('LinearTmpl', in_shape=self.in_shape)
 
 
 class LastLinLayerTmpl(LayerTemplate_):
@@ -1187,7 +1188,7 @@ class GapLayerTmpl(LayerTemplate_):
         self._generate_main_template()
 
     def _generate_main_template(self):
-        self._generate_template('GlobalAvgPool2dTmpl', in_shape = self.in_shape)
+        self._generate_template('GlobalAvgPool2dTmpl', in_shape=self.in_shape)
 
 
 class FlatLayerTmpl(LayerTemplate_):
@@ -1204,7 +1205,7 @@ class FlatLayerTmpl(LayerTemplate_):
 ####################### MODEL TEMPLATE ##################
 
 
-class ModelTmpl():
+class ModelTmpl:
     '''
         Model created from Layer templates
     '''
@@ -1240,7 +1241,7 @@ class ModelTmpl():
         mods = []
         for layer in self.layers:
             for tmpl in layer.templates:
-                mods.append(tmpl.instantiate_module())        
+                mods.append(tmpl.instantiate_module())
         model = nn.Sequential(*mods)
         return model
 
@@ -1295,7 +1296,7 @@ class ModelTmpl():
         return out_str
 
 
-class ModelTmpl_():
+class ModelTmpl_:
     '''
         ModelTmpl created from Module templates. Last template must be linear.        
     '''

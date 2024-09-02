@@ -4,20 +4,21 @@ import torch.nn as nn
 
 from sophius.templates import ConvLayerTmpl, FlatLayerTmpl, LinLayerTmpl, GapLayerTmpl, LastLinLayerTmpl, ModelTmpl
 
+
 ################ MODEL GENERATOR ####################
 
+
 class ModelGenerator_():
-    def __init__(self):
-        self.layers = []
+    def __init__(self, in_shape, out_shape):
+        self.in_shape = in_shape
+        self.out_shape = out_shape
+        self.layers = None
         self.conv_num = None
         self.lin_num = None
-        self.in_shape = None
-        self.out_shape = None
-    
-    def generate_model_tmpl(self):     
-        # children override this
-        return ModelTmpl()
-    
+
+    def generate_model_tmpl(self):
+        raise NotImplementedError
+
     def _gen_conv_layers(self):
         next_in_shape = self.in_shape
         conv_layers_num = random.randrange(1, self.conv_num + 1)        
@@ -69,13 +70,13 @@ class ConvGAPModelGenerator(ModelGenerator_):
         in_shape:
         [Conv layers] - [Global Average Pooling] - [Flatten] - [Last Linear]
     '''
-    def __init__(self, in_shape, out_shape, conv_num = 2):
+    def __init__(self, in_shape, out_shape, conv_num=2):
         self.conv_num = conv_num
         self.in_shape = in_shape
         self.out_shape = out_shape
     
     def generate_model_tmpl(self):
-        self.layers = []        
+        self.layers = []
 
         self._gen_conv_layers()
         self._gen_gap_layer()
@@ -92,11 +93,10 @@ class ConvFCModelGenerator(ModelGenerator_):
         [Conv layers] - [Flatten] - [Linear layers - 1] - [Last Linear]
     '''
 
-    def __init__(self, in_shape, out_shape, conv_num = 2, lin_num = 1):        
+    def __init__(self, in_shape, out_shape, conv_num=2, lin_num=1):
+        super().__init__(in_shape, out_shape)
         self.conv_num = conv_num
         self.lin_num = lin_num
-        self.in_shape = in_shape
-        self.out_shape = out_shape
     
     def generate_model_tmpl(self):
         self.layers = []        
@@ -108,3 +108,28 @@ class ConvFCModelGenerator(ModelGenerator_):
         
         model_tmpl = ModelTmpl(self.in_shape, self.out_shape, *self.layers)
         return model_tmpl
+
+
+class ConvModelGenerator(ModelGenerator_):
+    '''
+        [Conv layers] - [Flatten] or [GlobalAvgPool] - [Linear layers - 1] - [Last Linear]
+    '''
+
+    def __init__(self, in_shape, out_shape, conv_num=2, lin_num=1):
+        super().__init__(in_shape, out_shape)
+        self.conv_num = conv_num
+        self.lin_num = lin_num
+
+    def generate_model_tmpl(self):
+        self.layers = []
+
+        self._gen_conv_layers()
+
+        if random.choice([True, False]):
+            self._gen_gap_layer()
+
+        self._gen_flatten_layer()
+        self._gen_lin_layers()
+        self._gen_lastlin_layer()
+
+        return ModelTmpl(self.in_shape, self.out_shape, *self.layers)

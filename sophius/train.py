@@ -8,22 +8,24 @@ import matplotlib.pyplot as plt
 
 import sophius.utils as utils
 
-def train_express_gpu(model = None,
-                      loader = None,
-                      num_epoch = 1,
-                      milestones = [],
-                      train = False,
-                      manual_seed = False,
-                      verbose = False):
-    
+def train_express_gpu(model=None,
+                      loader=None,
+                      num_epoch=1,
+                      milestones=None,
+                      train=False,
+                      manual_seed=False,
+                      verbose=False):
+    if milestones is None:
+        milestones = []
+
     start_time = time.time()
     
-    if manual_seed: 
+    if manual_seed:
         torch.cuda.random.manual_seed(12345)
     # init
     loss_fn = nn.CrossEntropyLoss().type(torch.cuda.FloatTensor)
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones = milestones, gamma = 0.1)
+    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones, gamma=0.1)
     model.apply(utils.reset)
     model.train()
 
@@ -53,18 +55,20 @@ def train_express_gpu(model = None,
     
     return time_elapsed, val_acc, train_acc
 
+
 def validate_model(model=None, 
                    num_iter=1, 
                    num_epoch=1,
                    train=False,
-                   milestones=[],
+                   milestones=None,
                    loader=None, 
                    verbose=False):
-
     val_acc_list = []
     train_acc_list = []
     t_list = []
-    
+    if milestones is None:
+        milestones = []
+
     for i in range(num_iter):      
         t, val_acc, train_acc = train_express_gpu(model = model,
                                             loader = loader,
@@ -98,7 +102,7 @@ def validate_model(model=None,
 def check_accuracy(model, loader):
     num_correct = 0
     num_samples = 0
-    model.eval() # Put the model in test mode (the opposite of model.train(), essentially)
+    model.eval()  # Put the model in test mode (the opposite of model.train(), essentially)
     with torch.no_grad():
         for x, y in loader:
             x_var = x.type(torch.cuda.FloatTensor)
@@ -115,7 +119,7 @@ def check_accuracy(model, loader):
 def check_accuracy_gpu(model, loader):
     num_correct = 0
     num_samples = 0
-    model.eval() # Put the model in test mode (the opposite of model.train(), essentially)
+    model.eval()  # Put the model in test mode (the opposite of model.train(), essentially)
     with torch.no_grad():
         for x, y in loader:
             scores = model(x)

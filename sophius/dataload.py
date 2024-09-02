@@ -26,7 +26,7 @@ def cifar_to_gpu(cifar):
     return cifar_gpu
 
 
-def get_loader_gpu(cifar_gpu, num_val=1024, batch_size=512):
+def get_loader_gpu(cifar_gpu, val_size=1024, batch_size=512):
     """Splits dataset into training set followed by validation set by specifying validation set size,
     training size = dataset size - validation size. Then from training set randomly subsamples
      the small training set (same size as validation set).
@@ -41,21 +41,21 @@ def get_loader_gpu(cifar_gpu, num_val=1024, batch_size=512):
 
     Arguments:
         cifar_gpu (dataset): cifar dataset loaded into GPU memory
-        num_val (int): size of validation set
+        val_size (int): size of validation set
 
     Output:
         loader_gpu (dict of DataLoaderGPU): dictionary with 'val', 'train', 'train_small' keys
     """
     
-    num_train = len(cifar_gpu[0]) - num_val
-    num_train_small = num_val
+    num_train = len(cifar_gpu[0]) - val_size
+    num_train_small = val_size
 
     loader_train_small_gpu = DataLoaderGPU(cifar_gpu, 
                                     batch_size=64, 
                                     sampler=SubsetRandomSampler(np.random.randint(num_train, size=num_train_small)))
-    loader_val_gpu = DataLoaderGPU(cifar_gpu, 
-                                batch_size=64, 
-                                sampler=ChunkSampler(num_val, num_train))
+    loader_val_gpu = DataLoaderGPU(cifar_gpu,
+                                   batch_size=64,
+                                   sampler=ChunkSampler(val_size, num_train))
     loader_train_gpu = DataLoaderGPU(cifar_gpu,
                                     batch_size=batch_size,
                                     sampler=ChunkSampler(num_train))
