@@ -6,6 +6,9 @@ channels:
 dependencies:
   - python=3.8
   - numpy
+  - pandas
+  - seaborn
+  - fvcore
   - bitmath
   - ipykernel
   - pytorch=1.13.1
