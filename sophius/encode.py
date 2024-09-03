@@ -1,24 +1,27 @@
+from sophius.templates import *
 import numpy as np
 
-TEMPLATE_TYPES = (
-    'LinearTmpl',
-    'BatchNorm2dTmpl',
-    'ReLUTmpl',
-    'LeakyReLUTmpl',
-    'PReLUTmpl',
-    'DropoutTmpl',
-    'Dropout2dTmpl',
-    'FlattenTmpl',
-    'Conv2dTmpl',
-    'MaxPool2dTmpl',
-    'AvgPool2dTmpl',
-    'GlobalAvgPool2dTmpl',
+TEMPLATES = (
+    LinearTmpl(),
+    BatchNorm2dTmpl(),
+    ReLUTmpl(),
+    LeakyReLUTmpl(),
+    PReLUTmpl(),
+    DropoutTmpl(),
+    Dropout2dTmpl(),
+    FlattenTmpl(),
+    Conv2dTmpl(),
+    MaxPool2dTmpl(),
+    AvgPool2dTmpl(),
+    GlobalAvgPool2dTmpl(),
 )
 
+ENCODING_SIZE = 32
 
 class Encoder:
-    def __init__(self, types=TEMPLATE_TYPES, size=32):
-        self.types = types
+    def __init__(self, templates=TEMPLATES, size=ENCODING_SIZE):
+        self.templates = templates
+        self.types = [t.type for t in templates]
         self.size = size
 
     def encode_template(self, template):

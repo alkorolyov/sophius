@@ -3,8 +3,10 @@ import random
 import numpy as np
 from math import ceil, floor
 import sophius.utils as utils
+from sophius.encode import Encoder
 from collections import defaultdict
 
+encoder = Encoder()
 
 class Flatten(nn.Module):
     def forward(self, x):
@@ -1232,6 +1234,7 @@ class FlatLayerTmpl(LayerTemplate_):
 ####################### MODEL TEMPLATE ##################
 
 
+
 class ModelTmpl:
     '''
         Model created from Layer templates
@@ -1315,6 +1318,9 @@ class ModelTmpl:
             if layer_name == 'LinLayerTmpl':
                 lin_part.append(layer)
         return lin_part
+
+    def get_encoding(self):
+        return encoder.encode_model(self)
 
     def __repr__(self):
         out_str = ''
