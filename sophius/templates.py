@@ -3,8 +3,6 @@ import random
 import numpy as np
 from math import ceil, floor
 import sophius.utils as utils
-from sophius.encode import Encoder
-from collections import defaultdict
 
 class Flatten(nn.Module):
     def forward(self, x):
