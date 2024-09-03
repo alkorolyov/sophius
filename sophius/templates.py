@@ -6,8 +6,6 @@ import sophius.utils as utils
 from sophius.encode import Encoder
 from collections import defaultdict
 
-encoder = Encoder()
-
 class Flatten(nn.Module):
     def forward(self, x):
         N, C, H, W = x.size() # pylint: disable=unused-variable
@@ -1318,9 +1316,6 @@ class ModelTmpl:
             if layer_name == 'LinLayerTmpl':
                 lin_part.append(layer)
         return lin_part
-
-    def get_encoding(self):
-        return encoder.encode_model(self)
 
     def __repr__(self):
         out_str = ''

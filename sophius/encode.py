@@ -2,26 +2,27 @@ from sophius.templates import *
 import numpy as np
 
 TEMPLATES = (
-    LinearTmpl(),
-    BatchNorm2dTmpl(),
-    ReLUTmpl(),
-    LeakyReLUTmpl(),
-    PReLUTmpl(),
-    DropoutTmpl(),
-    Dropout2dTmpl(),
-    FlattenTmpl(),
-    Conv2dTmpl(),
-    MaxPool2dTmpl(),
-    AvgPool2dTmpl(),
-    GlobalAvgPool2dTmpl(),
+    LinearTmpl,
+    BatchNorm2dTmpl,
+    ReLUTmpl,
+    LeakyReLUTmpl,
+    PReLUTmpl,
+    DropoutTmpl,
+    Dropout2dTmpl,
+    FlattenTmpl,
+    Conv2dTmpl,
+    MaxPool2dTmpl,
+    AvgPool2dTmpl,
+    GlobalAvgPool2dTmpl,
 )
 
 ENCODING_SIZE = 32
 
+
 class Encoder:
     def __init__(self, templates=TEMPLATES, size=ENCODING_SIZE):
         self.templates = templates
-        self.types = [t.type for t in templates]
+        self.types = [t.__name__ for t in templates]
         self.size = size
 
     def encode_template(self, template):
@@ -65,5 +66,6 @@ class Encoder:
         for t in model.get_templates()[:-1]:
             res.append(self.encode_template(t))
         return np.array(res)
+
     def decode(self, encoding):
         pass
