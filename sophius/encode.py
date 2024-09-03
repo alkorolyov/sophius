@@ -1,19 +1,20 @@
+import sophius
 from sophius.templates import *
 import numpy as np
 
 TEMPLATES = (
-    LinearTmpl,
-    BatchNorm2dTmpl,
-    ReLUTmpl,
-    LeakyReLUTmpl,
-    PReLUTmpl,
-    DropoutTmpl,
-    Dropout2dTmpl,
-    FlattenTmpl,
-    Conv2dTmpl,
-    MaxPool2dTmpl,
-    AvgPool2dTmpl,
-    GlobalAvgPool2dTmpl,
+    sophius.templates.LinearTmpl,
+    sophius.templates.BatchNorm2dTmpl,
+    sophius.templates.ReLUTmpl,
+    sophius.templates.LeakyReLUTmpl,
+    sophius.templates.PReLUTmpl,
+    sophius.templates.DropoutTmpl,
+    sophius.templates.Dropout2dTmpl,
+    sophius.templates.FlattenTmpl,
+    sophius.templates.Conv2dTmpl,
+    sophius.templates.MaxPool2dTmpl,
+    sophius.templates.AvgPool2dTmpl,
+    sophius.templates.GlobalAvgPool2dTmpl,
 )
 
 ENCODING_SIZE = 32
