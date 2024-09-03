@@ -17,6 +17,10 @@ dependencies:
   - notebook
   - matplotlib
   - pytest
+  - pip
+  - pip:
+      - calflops
+        transformers
 
 
 
