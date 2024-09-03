@@ -221,7 +221,7 @@ class ModuleTemplate_():
             Optional arguments:
             - kwargs (dict): specific config for each module as kwargs, ex: kernel_size = (3, 3)
         '''
-        self.name = type(self).__name__
+        self.type = type(self).__name__
         self._in_shape = in_shape
         self._config = ConfigGenerator(self).get(**kwargs)
         # config change handlers
@@ -321,7 +321,6 @@ class ModuleTemplate_():
                 res[k] = self.config[k]
         return res
 
-
     def instantiate_module(self):
         """
         Returns an instance of PyTorch module from template.
@@ -356,21 +355,6 @@ class ModuleTemplate_():
         '''
         self._args = []
         self._kwargs = {}
-
-    # def __hash__(self):
-        # # module name to number:
-        # hash_str = ''
-        # module_ind = params_range_dict['module_name'].index(self.module_name)
-        # hash_str += hash_dict['module_name'][module_ind]
-        # # print(self.module_name, hash_str) # debug
-        # # param value to number
-        # for key in self.config:
-        #     if self.config[key].learnable:                
-        #         param_val = self.config[key].value
-        #         param_ind = self.param_values[key].index(param_val)
-        #         hash_str += hash_dict[key][param_ind]
-        #         # print(key, hash_dict[key][param_ind])  # debug
-        # return hash_str
 
     def __repr__(self):
         # tmpl_str = ', '.join((repr(self.in_shape), repr(self.config)))
@@ -503,8 +487,8 @@ class LeakyReLUTmpl(ModuleTemplate_):
     def _create_torch_args(self):
         self._args = []
         self._kwargs = {
-            'negative_slope' : self.config['negative_slope'].value,
-            'inplace' : self.config['inplace'].value
+            'negative_slope': self.config['negative_slope'].value,
+            'inplace': self.config['inplace'].value
         }
 
     def __repr__(self):
