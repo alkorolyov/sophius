@@ -36,5 +36,10 @@ def test_encode_model():
         assert len(hash_str) == 8 * len_model_encoding
 
 
-def test_encode_decode():
-    pass
+# def test_encode_decode():
+#     model_gen = ConvModelGenerator((3, 32, 32), 10)
+#     encoder = Encoder()
+#     m = model_gen.generate_model_tmpl()
+#     hash_str = encoder.model2hash(m)
+#     templates = encoder.decode_template()
+#     pass

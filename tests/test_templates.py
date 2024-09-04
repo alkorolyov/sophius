@@ -36,6 +36,7 @@ def test_config_get_random():
     assert template.params['option_1'] == 0
     assert not template.params['option_2']
 
+
 def test_config_get_learnable_params():
     template = MockTemplate()
     params = template.get_learnable_params()
@@ -48,6 +49,7 @@ def test_equal_templates():
     t2 = MockTemplate()
     assert t1 == t2
 
+
 def test_not_equal_templates():
     t1 = MockTemplate(option_1=1)
     t2 = MockTemplate(option_1=2)
@@ -56,17 +58,21 @@ def test_not_equal_templates():
     t2 = Conv2dTmpl()
     assert t1 != t2
 
+
 def test_moduletmpl_is_zero_tuple():
     template = MockTemplate(in_shape = (0, 1))
     assert template.is_zero_shape
+
 
 def test_moduletmpl_is_zero_single():
     template = MockTemplate(in_shape = 1)
     assert not template.is_zero_shape
 
+
 def test_moduletmpl_is_zero_None():
     template = MockTemplate(in_shape = None)
     assert not template.is_zero_shape
+
 
 def test_moduletmpl_in_shape_change():
     template = MockTemplate(in_shape=0)
@@ -75,28 +81,16 @@ def test_moduletmpl_in_shape_change():
     assert template.out_shape == (1, 1)
     assert not template.is_zero_shape
 
-def test_moduletmpl_config_change():        
-    class MockTemplate(ModuleTemplate_):
-        _params = {
-            'option': 1
-        }
-        def _update_out_shape(self):
-            self.out_shape = self.params['option']
-
-    template = MockTemplate(in_shape=10)
-    assert template.out_shape == 1
-
-    template.params = {'option': 2}
-    assert template.out_shape == 2
-
 
 def test_convtmpl_padding_size():
     template = ConvTemplate_(in_shape=(1, 2, 2), padding=True, kernel_size=(5, 5))
     assert template._calc_padding_size() == (2, 2)
 
+
 def test_convtmpl_padding_size_zero():
     template = ConvTemplate_(in_shape=(1, 2, 2), padding=False, kernel_size=(5, 5))
     assert template._calc_padding_size() == (0, 0)
+
 
 def test_convtmpl_out_shape():
     template = ConvTemplate_(in_shape = (1, 4, 4))
@@ -122,6 +116,7 @@ def test_convtmpl_out_shape():
     template.params['stride'] = (5, 5)
     template.update_shape()
     assert template.out_shape == (16, 1, 1)
+
 
 def test_convtmpl_rand():
     random.seed(0)
@@ -158,6 +153,7 @@ def test_convtmpl_rand():
     assert template.params['dilation'] == (1, 1)
     assert template.params['ceil_mode'] == False
 
+
 def test_lintmpl():
     tmpl = LinearTmpl(10, out_features = 32, bias=False)
     assert tmpl.in_shape == 10
@@ -173,6 +169,7 @@ def test_lintmpl():
     output = module(input.float())
     assert tmpl.out_shape == (output.shape[1])
 
+
 def test_batch_norm_tmpl():
     tmpl = BatchNorm2dTmpl(in_shape=(1, 4, 4))
     module = tmpl.instantiate_module()
@@ -180,6 +177,7 @@ def test_batch_norm_tmpl():
     input = torch.randn((batch_size, 1, 4, 4))
     output = module(input.float())
     assert tmpl.out_shape == (output.shape[1], output.shape[2], output.shape[3])
+
 
 def test_relu_tmpl():
     tmpl = ReLUTmpl()
@@ -193,6 +191,7 @@ def test_relu_tmpl():
     # print(dist)
     assert dist == torch.tensor(0)
 
+
 def test_leakyrelu_tmpl():
     tmpl = LeakyReLUTmpl()
     relu = tmpl.instantiate_module()
@@ -205,6 +204,7 @@ def test_leakyrelu_tmpl():
     # print(dist)
     assert dist <= torch.tensor(0.2)
 
+
 def test_prelu_tmpl():
     tmpl = PReLUTmpl(in_shape=(2, 4, 4), all_channels=True)
     module = tmpl.instantiate_module()
@@ -214,6 +214,7 @@ def test_prelu_tmpl():
     output = module(input.float())
     assert tmpl.out_shape == (output.shape[1], output.shape[2], output.shape[3])
 
+
 def test_dropout_tmpl():
     tmpl = Dropout2dTmpl(in_shape=(4, 4))
     module = tmpl.instantiate_module()
@@ -221,6 +222,7 @@ def test_dropout_tmpl():
     input = torch.randn((batch_size, 4, 4))
     output = module(input.float())
     assert tmpl.out_shape == (output.shape[1], output.shape[2])
+
 
 def test_flatten_tmpl():
     tmpl = FlattenTmpl(in_shape=(3, 4, 4))
@@ -230,6 +232,7 @@ def test_flatten_tmpl():
     output = module(input.float())
     assert tmpl.out_shape == (output.shape[1])
 
+
 def test_conv_tmpl():    
     tmpl = Conv2dTmpl(in_shape=(1, 4, 4))
     module = tmpl.instantiate_module()
@@ -237,6 +240,7 @@ def test_conv_tmpl():
     input = torch.randn((batch_size, 1, 4, 4))
     output = module(input.float())
     assert tmpl.out_shape == (output.shape[1], output.shape[2], output.shape[3])
+
 
 def test_maxpool_tmpl():
     tmpl = MaxPool2dTmpl(in_shape=(1, 4, 4))
@@ -246,6 +250,7 @@ def test_maxpool_tmpl():
     output = module(input.float())
     assert tmpl.out_shape == (output.shape[1], output.shape[2], output.shape[3])
 
+
 def test_avgpool_tmpl():
     tmpl = AvgPool2dTmpl(in_shape=(1, 4, 4))
     module = tmpl.instantiate_module()
@@ -253,6 +258,7 @@ def test_avgpool_tmpl():
     input = torch.randn((batch_size, 1, 4, 4))
     output = module(input.float())
     assert tmpl.out_shape == (output.shape[1], output.shape[2], output.shape[3])
+
 
 def test_gap_tmpl():
     tmpl = GlobalAvgPool2dTmpl(in_shape=(1, 4, 4))
@@ -387,6 +393,7 @@ def test_linlayer_tmpl():
     layer.gen_rand_layer()
     assert layer.out_shape == 2048
 
+
 def test_gaplayer_tmpl():    
     random.seed(0)
     layer = GapLayerTmpl()
@@ -401,21 +408,25 @@ def test_gaplayer_tmpl():
     assert layer.out_shape == (3, 1, 1)
     assert layer.out_shape == (output.shape[1], 1, 1)
 
+
 def test_model_templates_init_empty():
     model = ModelTmpl_()
     model.sync_shapes()
     assert model.out_shape is None
+
 
 def test_model_templates_init_inshape():
     model = ModelTmpl_((3, 4, 4))
     model.sync_shapes()
     assert model.out_shape is None
 
+
 def test_model_templates_init_templaes():
     conv = Conv2dTmpl()
     model = ModelTmpl_(None, None, conv)
     model.sync_shapes()
     assert model.out_shape is None
+
 
 def test_model_templates_init():
     conv = Conv2dTmpl()
@@ -430,16 +441,19 @@ def test_model_templates_init():
     assert model.out_shape == 10
     assert model.out_shape == output.shape[1]
 
+
 def test_model_layers_init_inshape():
     model = ModelTmpl((3, 4, 4))
     model.sync_shapes()
     assert model.out_shape is None
+
 
 def test_model_layers_init_templaes():
     conv = ConvLayerTmpl()
     model = ModelTmpl(None, None, conv)
     model.sync_shapes()
     assert model.out_shape is None
+
 
 def test_model_layers_init():
     conv = ConvLayerTmpl()
@@ -456,6 +470,7 @@ def test_model_layers_init():
     output = model_instance(input.float())
     assert model.out_shape == 10
     assert model.out_shape == output.shape[1]
+
 
 def test_model_layers_100():
     for i in range(100):

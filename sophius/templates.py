@@ -107,7 +107,6 @@ class ModuleTemplate_():
     '''
 
     config = {}
-    _params = {}
 
     # pytorch module name
     torch_name = None
@@ -124,22 +123,14 @@ class ModuleTemplate_():
         '''
         self.type = type(self).__name__
         self._in_shape = in_shape
-
+        self.params = {}
         for k, v in self.config.items():
             new_val = kwargs.get(k)
-            self._params[k] = v['default'] if new_val is None else new_val
+            self.params[k] = v['default'] if new_val is None else new_val
 
         self.update_shape()
         # utils.print_nonprivate_properties(self)
 
-    @property
-    def params(self):
-        return self._params
-
-    @params.setter
-    def params(self, value):
-        self._params = value
-        self.update_shape()
 
     @property
     def in_shape(self):
@@ -196,14 +187,13 @@ class ModuleTemplate_():
 
     def gen_rand_params(self):
         # self.params = ConfigGenerator(self).get_random()
-        params = {}
         for k, v in self.config.items():
             learning_range = v.get('range')
             if learning_range:
-                params[k] = random.choice(learning_range)
+                self.params[k] = random.choice(learning_range)
             else:
-                params[k] = v.get('default')
-        self.params = params
+                self.params[k] = v.get('default')
+        self.update_shape()
 
     def get_learnable_params(self):
         """
@@ -251,24 +241,23 @@ class ModuleTemplate_():
         return repr_str
 
     def __eq__(self, other):
-        equal = True
         # check different modules
         if self.__class__.__name__ != other.__class__.__name__:
             return False
         # check config for same modules
 
-        # if self.params != other.params:
-        #     return False
-        #
-        # return True
-        for key, val in self.params.items():
-            other_val = other.params.get(key)
-            if other_val is None:
-                return False
-            if other_val != val:
-                return False
+        if self.params != other.params:
+            return False
 
         return True
+        # for key, val in self.params.items():
+        #     other_val = other.params.get(key)
+        #     if other_val is None:
+        #         return False
+        #     if other_val != val:
+        #         return False
+        #
+        # return True
 
 class LinearTmpl(ModuleTemplate_):
 
@@ -1282,8 +1271,8 @@ class ModelTmpl_:
             tmpl._update_out_shape()
             if tmpl._is_zero_shape():
                 # debug info
-                # print(tmpl.torch_name, tmpl.in_shape, tmpl.out_shape)
-                self.templates.remove(tmpl)
+                print(tmpl.torch_name, tmpl.in_shape, tmpl.out_shape)
+                # self.templates.remove(tmpl)
             else:
                 next_in_shape = tmpl.out_shape
         self._set_last_shape()
