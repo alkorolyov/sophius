@@ -62,7 +62,7 @@ class Encoder:
         self.types = [t.__name__ for t in templates]
         self.size = size
 
-    def encode_template(self, template, dtype=np.uint8):
+    def encode_template(self, template: ModuleTemplate_, dtype=np.uint8):
         """
         Encodes template to bit vector.
         First 12 bytes is onehot encoded template type, taken from TEMPLATES const.
@@ -78,13 +78,13 @@ class Encoder:
 
         param_encoding = []
 
-        for param_name, param_data in template.config_data.items():
-            # skip non-learnable params
-            if not template.config[param_name].learnable:
-                continue
-
-            value = template.config[param_name].value
+        for param_name, param_data in template.config.items():
+            value = template.params[param_name]
             param_range = param_data.get('range')
+
+            # skip non-learnable params
+            if param_range is None:
+                continue
 
             # Handle discrete ranges (categorical values)
             if isinstance(param_range, list):
@@ -106,18 +106,22 @@ class Encoder:
 
         return final_encoding
 
-    def model2vec(self, model) -> np.ndarray:
+    def model2vec(self, model: ModelTmpl) -> np.ndarray:
         """
         Converts model to 2D bit vector. Omits the last template, as it is always linear.
         @param model: ModelTmpl instance to encode
-        @return: 2D bit vector encoding, ex [[0, 1, 0, 1], [1, 0, 1, 1]]
+        @return: 2D bit vector encoding,
+        Example:
+        [[0, 1, 0, 1],
+         [1, 0, 1, 1],
+         [1, 0, 0, 1]]
         """
         res = []
         for t in model.get_templates()[:-1]:
             res.append(self.encode_template(t))
         return np.array(res)
 
-    def model2hash(self, model) -> str:
+    def model2hash(self, model: ModelTmpl) -> str:
         """
         Converts model to hash string representation, by converting each bit vector
         to hex string and stacking them together.
@@ -126,5 +130,38 @@ class Encoder:
         """
         return vec_to_str(self.model2vec(model))
 
-    def decode(self, vec):
-        raise NotImplementedError
+    def decode_template(self, input_vec):
+        """
+        Decodes a bit vector back to a template object.
+        @param input_vec: 1D bit vector encoding
+        @return: Decoded template object
+        """
+        # Decode the template type from the first 12 bits
+        type_encoding = input_vec[:len(self.types)]
+        type_idx = np.argmax(type_encoding)
+        template_type = self.templates[type_idx]
+
+        # Start decoding the parameters
+        param_encoding_start = len(self.types)
+        params = {}
+
+        for param_name, param_data in template_type.config.items():
+            param_range = param_data.get('range')
+
+            if param_range is None:
+                continue
+
+            if isinstance(param_range, list):
+                param_encoding = input_vec[param_encoding_start:param_encoding_start + len(param_range)]
+                idx = np.argmax(param_encoding)
+                param_value = param_range[idx]
+                param_encoding_start += len(param_range)
+            else:
+                raise ValueError(f"Unsupported parameter type for {param_name}")
+
+            params[param_name] = param_value
+
+        # Create the template instance with decoded parameters
+        template_instance = template_type(**params)
+
+        return template_instance

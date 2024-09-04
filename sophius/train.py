@@ -40,6 +40,8 @@ def train_express_gpu(model=None,
             loss.backward()
             optimizer.step()
         scheduler.step()
+
+
     
     val_acc = check_accuracy(model, loader['val'])
     if train: 

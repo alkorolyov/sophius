@@ -1,13 +1,9 @@
 import random
-
 import torch.nn as nn
-
 from sophius.templates import ConvLayerTmpl, FlatLayerTmpl, LinLayerTmpl, GapLayerTmpl, LastLinLayerTmpl, ModelTmpl
 
 
 ################ MODEL GENERATOR ####################
-
-
 class ModelGenerator_():
     def __init__(self, in_shape, out_shape):
         self.in_shape = in_shape
@@ -115,7 +111,7 @@ class ConvModelGenerator(ModelGenerator_):
         [Conv layers] - [Flatten] or [GlobalAvgPool] - [Linear layers - 1] - [Last Linear]
     '''
 
-    def __init__(self, in_shape, out_shape, conv_num=2, lin_num=1):
+    def __init__(self, in_shape, out_shape, conv_num=3, lin_num=1):
         super().__init__(in_shape, out_shape)
         self.conv_num = conv_num
         self.lin_num = lin_num

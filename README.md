@@ -1,7 +1,9 @@
 # sophius
  Convenient PyTorch wrapper classes
 
-```python -m ipykernel install --user --name sophius```
+```
+python -m ipykernel install --user --name sophius
+```
 
  # To install locally for edit
  pip install -e <local sophius folder>

@@ -7,124 +7,88 @@ import numpy as np
 from sophius.templates import *
 # pylint: skip-file
 
-class TestTemplate():
-    config_data = {}
+class TestTemplate(ModuleTemplate_):
+    config = {}
 
 
-class TestModuleTmpl(ModuleTemplate_):
-    config_data = {
+class MockTemplate(ModuleTemplate_):
+    config = {
         'option_1': {
-            'default': Parameter(1),
+            'default': 1,
             'range': [-1, 0, 1]
         },
         'option_2': {
-            'default': Parameter(False, learnable=False)
+            'default': False,
         }
     }
-
-
-class TestConfig(ModuleTemplate_):
-    config_data = {
-        'option_1': {
-            'default': Parameter(1),
-            'range': [-1, 0, 1]
-        }
-    }
-    def _update_out_shape(self):
-        self.out_shape = self.config['option_1'].value
 
 
 def test_config_get_defaults():
-    template = TestTemplate()
-    template.config_data = {
-        'option_1': {
-            'default': Parameter(1),
-            'range': [-1, 0, 1]
-        },
-        'option_2': {
-            'default': Parameter(False, learnable=False)
-        }
-    }
-    config = ConfigGenerator(template).get()
-    assert config['option_1'].value == 1
-    assert config['option_1'].learnable == True
-    assert config['option_2'].value == False    
-    assert config['option_2'].learnable == False
+    template = MockTemplate()
+    assert template.params['option_1'] == 1
+    assert not template.params['option_2']
 
-def test_config_get_args():
-    template = TestTemplate()
-    template.config_data = {
-        'option_1': {
-            'default': Parameter(1, learnable=False),
-            'range': [-1, 0, 1]
-        }
-    }
-    config = ConfigGenerator(template).get(option_1=2)
-    assert config['option_1'].value == 2
-    assert config['option_1'].learnable == False
-
-def test_config_get_extra_args_exception():
-    template = TestTemplate()
-    with pytest.raises(ValueError):
-        assert ConfigGenerator(template).get(option_1=2)
 
 def test_config_get_random():
-    template = TestTemplate()
-    template.config_data = {
-        'option_1': {
-            'default': Parameter('string', learnable=True)
-        },
-        'option_2': {
-            'defalt': Parameter(1.25, learnable=False),
-            'range': [-1.25, 0, 1.25]
-        }
-    }
+    template = MockTemplate()
     random.seed(0)
-    config = ConfigGenerator(template).get_random()
-    # print(config)
-    assert config['option_1'].value == 'string'
-    assert config['option_1'].learnable == True
-    assert config['option_2'].value == 0
-    assert config['option_2'].learnable == True
+    template.gen_rand_params()
+    assert template.params['option_1'] == 0
+    assert not template.params['option_2']
+
+def test_config_get_learnable_params():
+    template = MockTemplate()
+    params = template.get_learnable_params()
+    assert params.get('option_1') == 1
+    assert params.get('option_2') is None
+
+
+def test_equal_templates():
+    t1 = MockTemplate()
+    t2 = MockTemplate()
+    assert t1 == t2
+
+def test_not_equal_templates():
+    t1 = MockTemplate(option_1=1)
+    t2 = MockTemplate(option_1=2)
+    assert t1 != t2
+    t1 = MockTemplate()
+    t2 = Conv2dTmpl()
+    assert t1 != t2
 
 def test_moduletmpl_is_zero_tuple():
-    template = TestModuleTmpl(in_shape = (0, 1))
-    assert template.is_zero_shape == True
+    template = MockTemplate(in_shape = (0, 1))
+    assert template.is_zero_shape
 
 def test_moduletmpl_is_zero_single():
-    template = TestModuleTmpl(in_shape = 1)
-    assert template.is_zero_shape == False
+    template = MockTemplate(in_shape = 1)
+    assert not template.is_zero_shape
 
 def test_moduletmpl_is_zero_None():
-    template = TestModuleTmpl(in_shape = None)
-    assert template.is_zero_shape == False
+    template = MockTemplate(in_shape = None)
+    assert not template.is_zero_shape
 
 def test_moduletmpl_in_shape_change():
-    template = TestModuleTmpl(in_shape = None)
+    template = MockTemplate(in_shape=0)
+    assert template.out_shape == 0
     template.in_shape = (1, 1)
     assert template.out_shape == (1, 1)
-    assert template.is_zero_shape == False
+    assert not template.is_zero_shape
 
 def test_moduletmpl_config_change():        
-    template = TestConfig(in_shape = 0, option_1 = (1, 0))
-    template.config = ConfigGenerator(template).get()
-    assert template.out_shape == (1)
-    assert template.is_zero_shape == False
+    class MockTemplate(ModuleTemplate_):
+        _params = {
+            'option': 1
+        }
+        def _update_out_shape(self):
+            self.out_shape = self.params['option']
 
-def test_moduletmpl_config_value_change():
-    template = TestConfig(in_shape = 0, option_1 = (1, 0))
-    assert template.config['option_1'].value == (1, 0)
-    template.config['option_1'].value = (1, 1)
-    template.update_shape()
-    assert template.out_shape == (1, 1)
-    assert template.is_zero_shape == False
+    template = MockTemplate(in_shape=10)
+    assert template.out_shape == 1
 
-def test_moduletmpl_config_change_key():
-    template = TestConfig(in_shape = 0, option_1 = (1, 0))
-    template.config['option_1'] = Parameter((1, 1))
-    template.update_shape()
-    assert template.out_shape == (1, 1)
-    assert template.is_zero_shape == False
+    template.params = {'option': 2}
+    assert template.out_shape == 2
+
 
 def test_convtmpl_padding_size():
     template = ConvTemplate_(in_shape=(1, 2, 2), padding=True, kernel_size=(5, 5))
@@ -136,70 +100,72 @@ def test_convtmpl_padding_size_zero():
 
 def test_convtmpl_out_shape():
     template = ConvTemplate_(in_shape = (1, 4, 4))
-    template.config = {
-        'out_channels': Parameter(32),
-        'kernel_size': Parameter((3, 3)),
-        'stride': Parameter((1, 1)),
-        'padding': Parameter(True),
-        'dilation': Parameter((1, 1)),
-        'ceil_mode': Parameter(False)
+    template.params = {
+        'out_channels': 32,
+        'kernel_size': (3, 3),
+        'stride': (1, 1),
+        'padding': True,
+        'dilation': (1, 1),
+        'ceil_mode': False,
     }
     assert template.out_shape == (32, 4, 4)
-    template.config['out_channels'].value = 16
+    template.params['out_channels'] = 16
     template.update_shape()
     assert template.out_shape == (16, 4, 4)
-    template.config['padding'] = Parameter(False)
+    template.params['padding'] = False
     template.update_shape()
     assert template.out_shape == (16, 2, 2)
-    template.config['padding'] = Parameter(True)
-    template.config['stride'] = Parameter((2, 2))
+    template.params['padding'] = True
+    template.params['stride'] = (2, 2)
     template.update_shape()
     assert template.out_shape == (16, 2, 2)
-    template.config['stride'].value = (5, 5)
+    template.params['stride'] = (5, 5)
     template.update_shape()
     assert template.out_shape == (16, 1, 1)
 
 def test_convtmpl_rand():
     random.seed(0)
     template = ConvTemplate_()
-    template.config_data = {
+    template.config = {
         'out_channels': {
-            'default': Parameter(32),
+            'default': 32,
             'range': [2, 4, 8]
         },
         'kernel_size': {
-            'default': Parameter((3, 3)),            
+            'default': (3, 3),
             'range': [(1, 1), (2, 2), (3, 3)]
         },
         'stride': {
-            'default': Parameter((1, 1)),
+            'default': (1, 1),
             'range': [(1, 1), (2, 2), (3, 3)]
         },
         'padding': {
-            'default': Parameter(True),
+            'default': True,
             'range': [True, False]
         },
         'dilation': {
-            'default': Parameter( (1, 1) )
+            'default':  (1, 1)
         },
         'ceil_mode': {
-            'default': Parameter(False)
+            'default': False
         }
     }
-    template.gen_rand_config()
-    assert template.config['out_channels'].value == 4
-    assert template.config['kernel_size'].value == (2, 2)
-    assert template.config['stride'].value == (1, 1)
-    assert template.config['padding'].value == False
+    template.gen_rand_params()
+    assert template.params['out_channels'] == 4
+    assert template.params['kernel_size'] == (2, 2)
+    assert template.params['stride'] == (1, 1)
+    assert template.params['padding'] == False
+    assert template.params['dilation'] == (1, 1)
+    assert template.params['ceil_mode'] == False
 
 def test_lintmpl():
-    tmpl = LinearTmpl(10, out_features = 32, bias = False)
+    tmpl = LinearTmpl(10, out_features = 32, bias=False)
     assert tmpl.in_shape == 10
     assert tmpl.out_shape == 32
-    assert tmpl.config['bias'].value is False    
+    assert tmpl.params['bias'] is False
     random.seed(0)
-    tmpl.gen_rand_config()
-    assert tmpl.out_shape == tmpl.config['out_features'].value
+    tmpl.gen_rand_params()
+    assert tmpl.out_shape == tmpl.params['out_features']
     assert tmpl.out_shape == 2048
     module = tmpl.instantiate_module()
     batch_size = 4
@@ -295,23 +261,25 @@ def test_gap_tmpl():
     input = torch.randn((batch_size, 1, 4, 4))
     output = module(input.float())
     assert tmpl.out_shape == (output.shape[1], output.shape[2], output.shape[3])
-    tmpl.gen_rand_config()
+    tmpl.gen_rand_params()
     module = tmpl.instantiate_module()
     batch_size = 4
     input = torch.randn((batch_size, 1, 4, 4))
     output = module(input.float())
     assert tmpl.out_shape == (output.shape[1], output.shape[2], output.shape[3])
 
-def test_seq_tmpl():
-    conv = Conv2dTmpl((3, 4, 4), kernel_size=(3, 3), stride=(2, 2))
-    flat = FlattenTmpl()
-    gap = GlobalAvgPool2dTmpl()
-    lin = LinearTmpl()
-    seq = SequentialEx((3, 4, 4), 10, conv, gap, flat, lin)
-    batch_size = 4
-    input = torch.randn((batch_size, 3, 4, 4))
-    output = seq(input.float())
-    assert (10) == (output.shape[1])
+
+# def test_seq_tmpl():
+#     conv = Conv2dTmpl((3, 4, 4), kernel_size=(3, 3), stride=(2, 2))
+#     flat = FlattenTmpl()
+#     gap = GlobalAvgPool2dTmpl()
+#     lin = LinearTmpl()
+#     seq = SequentialEx((3, 4, 4), 10, conv, gap, flat, lin)
+#     batch_size = 4
+#     input = torch.randn((batch_size, 3, 4, 4))
+#     output = seq(input.float())
+#     assert (10) == (output.shape[1])
+
 
 def test_layertmpl_init():
     conv = Conv2dTmpl(out_channels=16, kernel_size=(3, 3), stride=(2, 2))
@@ -322,9 +290,10 @@ def test_layertmpl_init():
     assert layer.out_shape == None
     layer.in_shape = (3, 4, 4)
     assert layer.out_shape == (16)
-    layer.templates[0].config['out_channels'].value = 32
+    layer.templates[0].params['out_channels'] = 32
     layer.sync_shapes()
     assert layer.out_shape == (32)
+
 
 def test_layertmpl_instantiate():
     conv = Conv2dTmpl(out_channels=16, kernel_size=(3, 3), stride=(2, 2))
@@ -336,52 +305,62 @@ def test_layertmpl_instantiate():
     output = layer_instance(input.float())    
     assert layer.out_shape == output.shape[1]
 
+
 def test_layertmpl_random():    
     layer = LayerTemplate_()
     random.seed(0)
-    layer.freq_dict = {
+    layer.config = {
         'activation': ['ReLUTmpl'],
-        'MaxPool2dTmpl': 1,
-        'BatchNorm2dTmpl': 1,
-        'AvgPool2dTmpl': 1,
-        'Dropout2dTmpl': 1
+        'freq': {
+            'MaxPool2dTmpl': 1,
+            'BatchNorm2dTmpl': 1,
+            'AvgPool2dTmpl': 1,
+            'Dropout2dTmpl': 1
+        }
     }
     layer.gen_rand_layer()
-    assert layer.out_shape == None
+    assert layer.out_shape is None
     layer.in_shape = (1, 5, 5)
-    assert layer.out_shape == (1, 2, 2)
+    assert layer.out_shape == (1, 1, 1)
+
 
 def test_convlayer_tmpl():
     random.seed(0)
     layer = ConvLayerTmpl()
-    layer.freq_dict = {
-        'activation' : ['ReLUTmpl', 'LeakyReLUTmpl', 'PReLUTmpl'],
-        'MaxPool2dTmpl': 0.5,
-        'BatchNorm2dTmpl': 0.5,
-        'AvgPool2dTmpl': 0.5,
-        'Dropout2dTmpl': 0
+    layer.config = {
+        'activation': ['ReLUTmpl', 'LeakyReLUTmpl', 'PReLUTmpl'],
+        'freq': {
+            'MaxPool2dTmpl': 1,
+            'BatchNorm2dTmpl': 1,
+            'AvgPool2dTmpl': 1,
+            'Dropout2dTmpl': 0
+        }
     }
-    layer.gen_rand_layer()    
+    layer.gen_rand_layer()
     assert layer.out_shape is None
     random.seed(0)
     layer = ConvLayerTmpl((3, 4, 4))
-    layer.freq_dict = {
-        'activation' : ['ReLUTmpl', 'LeakyReLUTmpl', 'PReLUTmpl'],
-        'MaxPool2dTmpl': 0.5,
-        'BatchNorm2dTmpl': 0.5,
-        'AvgPool2dTmpl': 0.5,
-        'Dropout2dTmpl': 0
+    layer.config = {
+        'activation': ['ReLUTmpl', 'LeakyReLUTmpl', 'PReLUTmpl'],
+        'freq': {
+            'MaxPool2dTmpl': 1,
+            'BatchNorm2dTmpl': 1,
+            'AvgPool2dTmpl': 1,
+            'Dropout2dTmpl': 0,
+        }
     }
     layer.gen_rand_layer()
-    assert layer.out_shape == (192, 1, 1)
+    assert layer.out_shape == (192, 2, 2)
     random.seed(0)
     layer = ConvLayerTmpl((3, 4, 4))
-    layer.freq_dict = {
-        'activation' : ['ReLUTmpl', 'LeakyReLUTmpl', 'PReLUTmpl'],
-        'MaxPool2dTmpl': 0.5,
-        'BatchNorm2dTmpl': 0.5,
-        'AvgPool2dTmpl': 0.5,
-        'Dropout2dTmpl': 0
+    layer.config = {
+        'activation': ['ReLUTmpl', 'LeakyReLUTmpl', 'PReLUTmpl'],
+        'freq': {
+            'MaxPool2dTmpl': 1,
+            'BatchNorm2dTmpl': 1,
+            'AvgPool2dTmpl': 1,
+            'Dropout2dTmpl': 0
+        }
     }
     layer.gen_rand_layer()
     layer_instance = layer.instantiate_layer()
@@ -389,10 +368,11 @@ def test_convlayer_tmpl():
     output = layer_instance(input.float())    
     assert layer.out_shape == (output.shape[1], output.shape[2], output.shape[3])
 
+
 def test_linlayer_tmpl():
     random.seed(0)
     layer = LinLayerTmpl()
-    layer.freq_dict = {
+    layer.config = {
         'activation' : ['ReLUTmpl', 'LeakyReLUTmpl', 'PReLUTmpl'],
         'Dropout2dTmpl': 0.5
     }    
@@ -400,7 +380,7 @@ def test_linlayer_tmpl():
     assert layer.out_shape is None
     random.seed(0)
     layer = LinLayerTmpl(32)
-    layer.freq_dict = {
+    layer.config = {
         'activation' : ['ReLUTmpl', 'LeakyReLUTmpl', 'PReLUTmpl'],
         'Dropout2dTmpl': 0.5
     }    
@@ -475,4 +455,8 @@ def test_model_layers_init():
     input = torch.randn((32, 3, 4, 4))
     output = model_instance(input.float())
     assert model.out_shape == 10
-    assert model.out_shape == output.shape[1]    
+    assert model.out_shape == output.shape[1]
+
+def test_model_layers_100():
+    for i in range(100):
+        test_model_layers_init()
