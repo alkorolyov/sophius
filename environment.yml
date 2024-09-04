@@ -20,7 +20,7 @@ dependencies:
   - pip
   - pip:
       - calflops
-        transformers
+      - transformers
 
 
 
