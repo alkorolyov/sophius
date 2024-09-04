@@ -95,7 +95,8 @@ def train_on_gpu(model=None,
     res = pd.DataFrame(columns=['epoch', 'loss', 'train_acc', 'val_acc', 'time'])
 
     val_acc, train_acc = 0, 0
-    pb = tqdm.tqdm(total=num_epoch)
+    if verbose:
+        pb = tqdm.tqdm(total=num_epoch)
 
     for i in range(num_epoch):
         # model.train()
@@ -117,12 +118,8 @@ def train_on_gpu(model=None,
         if verbose:
             pb.update(1)
             pb.set_description(f'Loss {running_loss:.3f}')
-        # if verbose:
-        #     print(f'{i} / {num_epoch}: Loss {running_loss:.3f} \t\t {elapsed_time:.0f}s', end='\r')
 
     if verbose:
-        print('Finished in %s' % utils.format_time(elapsed_time))
-        print(f'Loss: {running_loss:.3f}')
         print('val_acc: %.3f, train_acc: %.3f' % (val_acc, train_acc))
 
     torch.cuda.empty_cache()

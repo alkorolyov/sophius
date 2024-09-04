@@ -97,4 +97,4 @@ def calc_model_flops(model, in_shape):
                                           print_results=False,
                                           print_detailed=False,
                                           output_precision=4)
-    return flops
+    return flops, params
