@@ -9,6 +9,7 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 
 import sophius.utils as utils
+import tqdm
 
 
 def train_express_gpu(model=None,
@@ -72,6 +73,8 @@ def train_express_gpu(model=None,
 def train_on_gpu(model=None,
                     loader=None,
                     num_epoch=1,
+                    learning_rate=1e-3,
+                    gamma=0.1,
                     milestones=None,
                     random_seed=None,
                     verbose=False):
@@ -84,14 +87,15 @@ def train_on_gpu(model=None,
         torch.cuda.random.manual_seed(random_seed)
     # init
     loss_fn = nn.CrossEntropyLoss().type(torch.cuda.FloatTensor)
-    optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones, gamma=0.1)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones, gamma=gamma)
     model.apply(utils.reset)
     model.train()
 
-    train_acc, val_acc = 0, 0
-
     res = pd.DataFrame(columns=['epoch', 'loss', 'train_acc', 'val_acc', 'time'])
+
+    val_acc, train_acc = 0, 0
+    pb = tqdm.tqdm(total=num_epoch)
 
     for i in range(num_epoch):
         # model.train()
@@ -106,17 +110,19 @@ def train_on_gpu(model=None,
         scheduler.step()
 
         elapsed_time = time.time() - start_time
-        _val_acc = check_accuracy(model, loader['val'])
-        _train_acc = check_accuracy(model, loader['train_small'])
-        res.loc[i] = [i, running_loss, _train_acc, _val_acc, elapsed_time]
+        val_acc = check_accuracy(model, loader['val'])
+        train_acc = check_accuracy(model, loader['train_small'])
+        res.loc[i] = [i, running_loss, train_acc, val_acc, elapsed_time]
 
         if verbose:
-            print(f'{i} / {num_epoch}: Loss {running_loss:.4f} {elapsed_time:.0f}s', end='\r')
-
-    time_elapsed = (time.time() - start_time)
+            pb.update(1)
+            pb.set_description(f'Loss {running_loss:.3f}')
+        # if verbose:
+        #     print(f'{i} / {num_epoch}: Loss {running_loss:.3f} \t\t {elapsed_time:.0f}s', end='\r')
 
     if verbose:
-        print('Finished in %s' % utils.format_time(time_elapsed))
+        print('Finished in %s' % utils.format_time(elapsed_time))
+        print(f'Loss: {running_loss:.3f}')
         print('val_acc: %.3f, train_acc: %.3f' % (val_acc, train_acc))
 
     torch.cuda.empty_cache()
