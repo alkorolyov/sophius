@@ -55,7 +55,7 @@ def get_loader_gpu(cifar_gpu, val_size=1024, batch_size=512):
                                     sampler=SubsetRandomSampler(np.random.randint(num_train, size=num_train_small)))
     loader_val_gpu = DataLoaderGPU(cifar_gpu,
                                    batch_size=64,
-                                   sampler=ChunkSampler(val_size, num_train))
+                                   sampler=ChunkSampler(val_size, start=num_train))
     loader_train_gpu = DataLoaderGPU(cifar_gpu,
                                     batch_size=batch_size,
                                     sampler=ChunkSampler(num_train))
@@ -78,9 +78,11 @@ def get_loader(cifar, num_val=1024, batch_size=512):
     loader_train = DataLoader(cifar,    
                                 batch_size=batch_size,
                                 sampler=ChunkSampler(num_train))
-    loader = {'val' : loader_val,
-                'train' : loader_train,
-                'train_small' : loader_train_small}    
+    loader = {
+        'val': loader_val,
+        'train': loader_train,
+        'train_small': loader_train_small
+    }
     return loader
 
 
@@ -109,7 +111,7 @@ class DataLoaderGPU():
         index = []
         for _ in range(self.batch_size):
             index.append(next(self._sampler_iter))
-        return torch.tensor(index).type(torch.cuda.LongTensor) # pylint: disable=not-callable
+        return torch.tensor(index).type(torch.cuda.LongTensor)  # pylint: disable=not-callable
     
     def _next_data(self, index):
         x = torch.index_select(self.dataset[0], 0, index)

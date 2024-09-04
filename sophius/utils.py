@@ -2,6 +2,7 @@ import random
 import gc
 from functools import reduce
 import operator as op
+from calflops import calculate_flops
 
 import bitmath
 import torch
@@ -87,3 +88,13 @@ def get_tensors_memory():
         tensor_size_formated = tensor['size'].best_prefix().format("{value:>6.2f} {unit:5}")
         tensor_info_formated = '{p[shape]:20} {p[dtype]:16} {p[device]:8} {p[class]:10}'.format(p=tensor)
         print(tensor_size_formated, tensor_info_formated)
+
+
+def calc_model_flops(model, in_shape):
+    flops, macs, params = calculate_flops(model=model,
+                                          input_shape=tuple([1] + list(in_shape)),
+                                          output_as_string=False,
+                                          print_results=False,
+                                          print_detailed=False,
+                                          output_precision=4)
+    return flops

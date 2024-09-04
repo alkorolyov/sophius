@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 
 import sophius.utils as utils
 
+
 def train_express_gpu(model=None,
                       loader=None,
                       num_epoch=1,

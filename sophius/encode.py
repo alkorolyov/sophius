@@ -1,4 +1,3 @@
-import sophius
 from sophius.templates import *
 import numpy as np
 
@@ -21,6 +20,12 @@ ENCODING_SIZE = 32
 
 
 def vec_to_str(arr: np.ndarray) -> str:
+    """
+    Converts 2D array of bit vectors to hex representation,
+    @param arr: 2D numpy bit array, ex [[0, 1, 0, 1], [1, 0, 1, 1]]
+    @return: str hex representation, ex '050B'
+    """
+
     def bits_to_hex(vector):
         bit_string = ''.join(vector.astype(str))
         return hex(int(bit_string, 2))[2:].zfill(8)
@@ -30,6 +35,11 @@ def vec_to_str(arr: np.ndarray) -> str:
 
 
 def str_to_vec(hex_str: str) -> np.ndarray:
+    """
+    Converts hex representation of 2D array of bit vectors to bit vector,
+    @param hex_str: hex representation, ex '050B'
+    @return: 2D numpy bit array, ex [[0, 1, 0, 1], [1, 0, 1, 1]]
+    """
     def hex_to_bits(hex_chunk):
         int_value = int(hex_chunk, 16)
         bit_string = bin(int_value)[2:].zfill(32)
@@ -44,12 +54,23 @@ def str_to_vec(hex_str: str) -> np.ndarray:
 
 
 class Encoder:
+    """
+    Handles encoding of module templates to bit vectors.
+    """
     def __init__(self, templates=TEMPLATES, size=ENCODING_SIZE):
         self.templates = templates
         self.types = [t.__name__ for t in templates]
         self.size = size
 
     def encode_template(self, template, dtype=np.uint8):
+        """
+        Encodes template to bit vector.
+        First 12 bytes is onehot encoded template type, taken from TEMPLATES const.
+        the rest of 20 bytes are encoded params from the module config_data.
+        @param template: ModuleTmpl instance to encode, ex Conv2d
+        @param dtype: bit vector datatype
+        @return: 1D bit vector encoding, ex [0 0 0 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 1 0 0 1 0]
+        """
         # One-hot encoding for the template type
         type_encoding = np.zeros(len(self.types), dtype=dtype)
         idx = self.types.index(template.type)
@@ -85,14 +106,25 @@ class Encoder:
 
         return final_encoding
 
-    def encode_model(self, model) -> np.ndarray:
+    def model2vec(self, model) -> np.ndarray:
+        """
+        Converts model to 2D bit vector. Omits the last template, as it is always linear.
+        @param model: ModelTmpl instance to encode
+        @return: 2D bit vector encoding, ex [[0, 1, 0, 1], [1, 0, 1, 1]]
+        """
         res = []
         for t in model.get_templates()[:-1]:
             res.append(self.encode_template(t))
         return np.array(res)
 
-    def encode_model_str(self, model) -> str:
-        return vec_to_str(self.encode_model(model))
+    def model2hash(self, model) -> str:
+        """
+        Converts model to hash string representation, by converting each bit vector
+        to hex string and stacking them together.
+        @param model: ModelTmpl instance to encode
+        @return: hash string representation, ex '050B'
+        """
+        return vec_to_str(self.model2vec(model))
 
-    def decode(self, encoding):
-        pass
+    def decode(self, vec):
+        raise NotImplementedError
