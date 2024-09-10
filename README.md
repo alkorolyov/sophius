@@ -20,7 +20,7 @@ import torchvision.transforms as T
 model_gen = ConvModelGenerator((3, 32, 32), 10, conv_num=6, lin_num=3)
 model_tmpl = model_gen.generate_model_tmpl()
 print(model_tmpl)
-
+<the actual output here>
 Conv2d       (16, 8, 8)     (1, 1)   (4, 4)  
 LeakyReLU    (16, 8, 8)     (0.001) 
 BatchNorm2d  (16, 8, 8)    
