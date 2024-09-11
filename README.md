@@ -33,7 +33,7 @@ print(model_tmpl)
 fixed_model_gpu = model_tmpl.instantiate_model().type(torch.cuda.FloatTensor)
 print(fixed_model_gpu)
 
-Sequential(
+# Sequential(
 #   (0): Conv2d(3, 16, kernel_size=(1, 1), stride=(4, 4))
 #   (1): LeakyReLU(negative_slope=0.001)
 #   (2): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
