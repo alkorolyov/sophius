@@ -99,7 +99,7 @@ def train_on_gpu(
     start_time = time.time()
 
     if random_seed:
-        torch.cuda.random.manual_seed(random_seed)
+        utils.set_global_seed(random_seed)
 
     loss_fn = nn.CrossEntropyLoss().type(torch.cuda.FloatTensor)
     optimizer = optim.AdamW(model.parameters(), lr=learning_rate)
@@ -156,11 +156,11 @@ def train_on_gpu_ex(
         random_seed=42,
         verbose=False,
 ):
+    if random_seed:
+        utils.set_global_seed(random_seed)
+
     # init
     loader = get_loader_gpu(dataset, val_size=val_size, batch_size=batch_size)
-
-    if random_seed:
-        torch.manual_seed(random_seed)
 
     loss_fn = nn.CrossEntropyLoss().type(torch.cuda.FloatTensor)
 
