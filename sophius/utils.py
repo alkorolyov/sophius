@@ -6,6 +6,9 @@ from calflops import calculate_flops
 
 import bitmath
 import torch
+import hashlib
+import json
+
 
 
 def reset(m):
@@ -18,6 +21,10 @@ def shuffle_dict(d):
     random.shuffle(l)
     d = dict(l)
     return d
+
+
+def hash_dict(d):
+    return hashlib.sha256(json.dumps(d, sort_keys=True).encode('utf8')).hexdigest()
 
 
 def print_nonprivate_properties(obj):
@@ -97,4 +104,9 @@ def calc_model_flops(model, in_shape):
                                           print_results=False,
                                           print_detailed=False,
                                           output_precision=4)
-    return flops, params
+    model_info = {
+        'flops': flops,
+        'macs': macs,
+        'params': params,
+    }
+    return model_info

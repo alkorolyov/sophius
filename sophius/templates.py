@@ -4,7 +4,6 @@ import torch
 import random
 import numpy as np
 from math import ceil, floor
-import sophius.utils as utils
 
 from torch.nn import AvgPool2d, BatchNorm2d, Conv2d, Dropout, Dropout2d, Flatten, LeakyReLU, Linear, MaxPool2d, PReLU, ReLU, Sequential
 

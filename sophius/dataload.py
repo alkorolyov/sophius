@@ -47,21 +47,23 @@ def get_loader_gpu(cifar_gpu, val_size=1024, batch_size=512):
         loader_gpu (dict of DataLoaderGPU): dictionary with 'val', 'train', 'train_small' keys
     """
     
-    num_train = len(cifar_gpu[0]) - val_size
-    num_train_small = val_size
+    train_size = len(cifar_gpu[0]) - val_size
+    train_small_size = val_size
 
     loader_train_small_gpu = DataLoaderGPU(cifar_gpu, 
                                     batch_size=batch_size,
-                                    sampler=SubsetRandomSampler(np.random.randint(num_train, size=num_train_small)))
+                                    sampler=SubsetRandomSampler(np.random.randint(train_size, size=train_small_size)))
     loader_val_gpu = DataLoaderGPU(cifar_gpu,
                                    batch_size=batch_size,
-                                   sampler=ChunkSampler(val_size, start=num_train))
+                                   sampler=ChunkSampler(val_size, start=train_size))
     loader_train_gpu = DataLoaderGPU(cifar_gpu,
                                     batch_size=batch_size,
-                                    sampler=ChunkSampler(num_train))
-    loader_gpu = {'val' : loader_val_gpu,
-                'train' : loader_train_gpu,
-                'train_small' : loader_train_small_gpu}    
+                                    sampler=ChunkSampler(train_size))
+    loader_gpu = {
+        'val' : loader_val_gpu,
+        'train' : loader_train_gpu,
+        'train_small' : loader_train_small_gpu
+    }
     return loader_gpu
 
 

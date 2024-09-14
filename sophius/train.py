@@ -9,7 +9,19 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 
 import sophius.utils as utils
+from sophius.dataload import get_loader_gpu
 import tqdm
+
+from torch.optim import AdamW
+from torch.optim.lr_scheduler import ExponentialLR
+
+def _instance_from_name(class_name, *args, **kwargs):
+    """
+    Instantiate class by name
+    """
+    klass = globals()[class_name]
+    class_instance = klass(*args, **kwargs)
+    return class_instance
 
 
 def train_express_gpu(model=None,
@@ -69,15 +81,18 @@ def train_express_gpu(model=None,
     
     return time_elapsed, val_acc, train_acc
 
+def train_on_gpu(
+        model=None,
+        loader=None,
+        num_epoch=1,
+        learning_rate=1e-3,
+        gamma=0.1,
+        milestones=None,
+        random_seed=42,
+        verbose=False,
+):
+    # init
 
-def train_on_gpu(model=None,
-                    loader=None,
-                    num_epoch=1,
-                    learning_rate=1e-3,
-                    gamma=0.1,
-                    milestones=None,
-                    random_seed=None,
-                    verbose=False):
     if milestones is None:
         milestones = []
 
@@ -85,9 +100,9 @@ def train_on_gpu(model=None,
 
     if random_seed:
         torch.cuda.random.manual_seed(random_seed)
-    # init
+
     loss_fn = nn.CrossEntropyLoss().type(torch.cuda.FloatTensor)
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = optim.AdamW(model.parameters(), lr=learning_rate)
     scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones, gamma=gamma)
     model.apply(utils.reset)
     model.train()
@@ -120,7 +135,78 @@ def train_on_gpu(model=None,
             pb.set_description(f'Loss {running_loss:.3f}')
 
     if verbose:
-        print('max_val_acc: %.3f val_acc: %.3f train_acc: %.3f' % (res.val_acc.max(), val_acc, train_acc))
+        print('val_acc: %.3f train_acc: %.3f' % (res.val_acc[-10:].mean(), train_acc))
+
+    torch.cuda.empty_cache()
+    del model
+
+    return res
+
+
+def train_on_gpu_ex(
+        model=None,
+        dataset=None,
+        val_size=10000,
+        batch_size=1024,
+        num_epoch=1,
+        optimizer=None,
+        opt_params=None,
+        scheduler=None,
+        sch_params=None,
+        random_seed=42,
+        verbose=False,
+):
+    # init
+    loader = get_loader_gpu(dataset, val_size=val_size, batch_size=batch_size)
+
+    if random_seed:
+        torch.manual_seed(random_seed)
+
+    loss_fn = nn.CrossEntropyLoss().type(torch.cuda.FloatTensor)
+
+    if optimizer:
+        optimizer = _instance_from_name(optimizer, model.parameters(), **opt_params)
+    else:
+        optimizer = optim.AdamW(model.parameters())
+
+    if scheduler:
+        scheduler = _instance_from_name(scheduler, optimizer, **sch_params)
+
+    model.apply(utils.reset)
+    model.train()
+
+    res = pd.DataFrame(columns=['epoch', 'loss', 'train_acc', 'val_acc', 'time'])
+
+    val_acc, train_acc = 0, 0
+    if verbose:
+        pb = tqdm.tqdm(total=num_epoch)
+
+    tic = time.time()
+
+    for i in range(num_epoch):
+        # model.train()
+        running_loss = 0.0
+        for t, (x, y) in enumerate(loader['train']):
+            scores = model(x)
+            loss = loss_fn(scores, y)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+        if scheduler:
+            scheduler.step()
+
+        toc = time.time()
+        val_acc = check_accuracy(model, loader['val'])
+        train_acc = check_accuracy(model, loader['train_small'])
+        res.loc[i] = [i, running_loss, train_acc, val_acc, toc - tic]
+
+        if verbose:
+            pb.update(1)
+            pb.set_description(f'Loss {running_loss:.3f}')
+
+    if verbose:
+        print('val_acc: %.3f train_acc: %.3f' % (res.val_acc[-10:].mean(), train_acc))
 
     torch.cuda.empty_cache()
     del model
