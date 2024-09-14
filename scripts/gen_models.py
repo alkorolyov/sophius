@@ -1,25 +1,19 @@
 import sys
 sys.path.append("..")
 
-import torch
-from calflops import calculate_flops
-import sophius.utils as utils
 import sqlite3
-from sophius.utils import hash_dict
+import pandas as pd
+from tqdm import tqdm
 
 import sophius.dataload as dload
 from sophius.modelgen import ConvModelGenerator
-from sophius.train import train_express_gpu
-import torchvision.datasets as dset
-import torchvision.transforms as T
 from sophius.encode import Encoder
 from sophius.utils import calc_model_flops, hash_dict
-import sqlite3
-import pandas as pd
-import seaborn as sns
-from tqdm import tqdm
-import random
 from sophius.train import train_on_gpu_ex
+
+import torch
+import torchvision.datasets as dset
+import torchvision.transforms as T
 
 def main():
     normalize = T.Compose([
