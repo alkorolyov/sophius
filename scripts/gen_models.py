@@ -38,7 +38,7 @@ def main():
     train_params = {
         'val_size': 10000,
         'batch_size': 256,
-        'num_epoch': 5,
+        'num_epoch': 50,
         'random_seed': 42,
         'optimizer': 'AdamW',
         'opt_params': {
@@ -88,7 +88,10 @@ def main():
         while True:
             yield
 
-    for _ in tqdm(generator()):
+    pb = tqdm()
+    while True:
+    # for _ in tqdm(generator()):
+
         model_tmpl = model_gen.generate_model_tmpl()
         model = model_tmpl.instantiate_model().type(torch.cuda.FloatTensor)
 
@@ -123,6 +126,10 @@ def main():
 
             epoch_results.to_sql('model_epochs', conn, if_exists='append', index=False)
 
+        val_acc = epoch_results.val_acc.iloc[-10:].mean()
+        train_acc = epoch_results.train_acc.iloc[-10:].mean()
+        pb.update(1)
+        pb.set_description(f'val_acc {val_acc:.3f} train_acc {train_acc:.3f}')
 
 if __name__ == '__main__':
     main()
