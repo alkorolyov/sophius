@@ -62,36 +62,28 @@ def main():
         except:
             pass
 
-
         df = pd.DataFrame([exp_params], index=[exp_id])
         exp_hash = hash_dict(exp_params)
         df['hash'] = exp_hash
         df.index.name = 'id'
         if exp_id == 0:
             df.astype(str).to_sql('experiments', conn, if_exists='append')
+            print('Experiment created, exp_id:', exp_id)
         else:
             # check if experiment exists
             res = conn.execute('SELECT id FROM experiments WHERE hash == ?', (exp_hash,)).fetchone()
             if res:
                 exp_id = res[0]
                 print('Experiment exists, exp_id:', exp_id)
-
-
             else:
-                print('Experiment created, exp_id:', exp_id)
                 df.astype(str).to_sql('experiments', conn, if_exists='append')
+                print('Experiment created, exp_id:', exp_id)
 
-    # Generate models
+    print('Generating models')
     model_gen = ConvModelGenerator((3, 32, 32), 10, conv_num=1, lin_num=1)
-
-    def generator():
-        while True:
-            yield
 
     pb = tqdm()
     while True:
-    # for _ in tqdm(generator()):
-
         model_tmpl = model_gen.generate_model_tmpl()
         model = model_tmpl.instantiate_model().type(torch.cuda.FloatTensor)
 
@@ -123,7 +115,6 @@ def main():
         with sqlite3.connect('../data/models.db') as conn:
             df = pd.DataFrame([model_results]).set_index('id').astype(str)
             df.to_sql('models', conn, if_exists='append')
-
             epoch_results.to_sql('model_epochs', conn, if_exists='append', index=False)
 
         val_acc = epoch_results.val_acc.iloc[-10:].mean()
