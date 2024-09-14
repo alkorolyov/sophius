@@ -93,15 +93,19 @@ class Encoder:
                     idx = param_range.index(value)
                     encoding[idx] = 1
                 else:
-                    raise ValueError(f"[{template.name}] Value {value} not in the provided range for {param_name}")
+                    raise ValueError(f"[{template.torch_name}] Value {value} not in the provided range for {param_name}")
 
             else:
-                raise ValueError(f"[{template.name}] Unsupported parameter type for {param_name}: {value}")
+                raise ValueError(f"[{template.torch_name}] Unsupported parameter type for {param_name}: {value}")
 
             param_encoding.append(encoding)
 
             # Concatenate all encodings into a single vector for the template
         final_encoding = np.concatenate([type_encoding] + param_encoding)
+
+        if len(final_encoding) > self.size:
+            raise ValueError(f'Template encoding too long: {len(final_encoding)}, too many params?')
+
         final_encoding = np.pad(final_encoding, (0, max(0, self.size - len(final_encoding))))
 
         return final_encoding
@@ -117,7 +121,7 @@ class Encoder:
          [1, 0, 0, 1]]
         """
         res = []
-        for t in model.get_templates()[:-1]:
+        for t in model.templates[:-1]:
             res.append(self.encode_template(t))
         return np.array(res)
 
@@ -130,7 +134,7 @@ class Encoder:
         """
         return vec_to_str(self.model2vec(model))
 
-    def decode_template(self, input_vec):
+    def decode_template(self, input_vec) -> ModuleTemplate_:
         """
         Decodes a bit vector back to a template object.
         @param input_vec: 1D bit vector encoding
@@ -138,30 +142,45 @@ class Encoder:
         """
         # Decode the template type from the first 12 bits
         type_encoding = input_vec[:len(self.types)]
-        type_idx = np.argmax(type_encoding)
-        template_type = self.templates[type_idx]
+        idx = np.argmax(type_encoding)
+        template_type = self.templates[idx]
 
         # Start decoding the parameters
         param_encoding_start = len(self.types)
         params = {}
 
-        for param_name, param_data in template_type.config.items():
-            param_range = param_data.get('range')
+        for name, data in template_type.config.items():
+            param_range = data.get('range')
 
             if param_range is None:
                 continue
 
             if isinstance(param_range, list):
-                param_encoding = input_vec[param_encoding_start:param_encoding_start + len(param_range)]
+                param_encoding = input_vec[param_encoding_start: param_encoding_start + len(param_range)]
                 idx = np.argmax(param_encoding)
                 param_value = param_range[idx]
                 param_encoding_start += len(param_range)
             else:
-                raise ValueError(f"Unsupported parameter type for {param_name}")
+                raise ValueError(f"Unsupported parameter type for {name}")
 
-            params[param_name] = param_value
+            params[name] = param_value
 
         # Create the template instance with decoded parameters
-        template_instance = template_type(**params)
+        template = template_type(**params)
 
-        return template_instance
+        return template
+
+    def hash2model(self, hash_str: str, in_shape=None, out_shape=None) -> ModelTmpl:
+        templates = []
+
+        arr = str_to_vec(hash_str)
+
+        for vec in arr:
+            templates.append(self.decode_template(vec))
+
+        # last layer is always linear
+        templates.append(LinearTmpl())
+
+        return ModelTmpl(in_shape, out_shape, *templates)
+
+

@@ -120,7 +120,7 @@ def train_on_gpu(model=None,
             pb.set_description(f'Loss {running_loss:.3f}')
 
     if verbose:
-        print('val_acc: %.3f, train_acc: %.3f' % (val_acc, train_acc))
+        print('max_val_acc: %.3f val_acc: %.3f train_acc: %.3f' % (res.val_acc.max(), val_acc, train_acc))
 
     torch.cuda.empty_cache()
     del model

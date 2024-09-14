@@ -7,6 +7,7 @@ dependencies:
   - python=3.8
   - numpy
   - pandas
+  - scikit-learn
   - seaborn
   - fvcore
   - bitmath
@@ -21,6 +22,9 @@ dependencies:
   - pip:
       - calflops
       - transformers
+      - pytorch-lightning==1.8.*
+      - protobuf==4.25.3
+      - tensorboard
 
 
 

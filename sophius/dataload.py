@@ -51,10 +51,10 @@ def get_loader_gpu(cifar_gpu, val_size=1024, batch_size=512):
     num_train_small = val_size
 
     loader_train_small_gpu = DataLoaderGPU(cifar_gpu, 
-                                    batch_size=64, 
+                                    batch_size=batch_size,
                                     sampler=SubsetRandomSampler(np.random.randint(num_train, size=num_train_small)))
     loader_val_gpu = DataLoaderGPU(cifar_gpu,
-                                   batch_size=64,
+                                   batch_size=batch_size,
                                    sampler=ChunkSampler(val_size, start=num_train))
     loader_train_gpu = DataLoaderGPU(cifar_gpu,
                                     batch_size=batch_size,

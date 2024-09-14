@@ -313,7 +313,11 @@ def test_layertmpl_instantiate():
 
 
 def test_layertmpl_random():    
-    layer = LayerTemplate_()
+    class Mock(LayerTemplate_):
+        def _generate_main_template(self):
+            pass
+
+    layer = Mock()
     random.seed(0)
     layer.config = {
         'activation': ['ReLUTmpl'],
@@ -410,20 +414,20 @@ def test_gaplayer_tmpl():
 
 
 def test_model_templates_init_empty():
-    model = ModelTmpl_()
+    model = ModelTmpl()
     model.sync_shapes()
     assert model.out_shape is None
 
 
 def test_model_templates_init_inshape():
-    model = ModelTmpl_((3, 4, 4))
+    model = ModelTmpl((3, 4, 4))
     model.sync_shapes()
     assert model.out_shape is None
 
 
 def test_model_templates_init_templaes():
     conv = Conv2dTmpl()
-    model = ModelTmpl_(None, None, conv)
+    model = ModelTmpl(None, None, conv)
     model.sync_shapes()
     assert model.out_shape is None
 
@@ -432,7 +436,7 @@ def test_model_templates_init():
     conv = Conv2dTmpl()
     flat = FlattenTmpl()
     lin = LinearTmpl()
-    model = ModelTmpl_((3, 4, 4), 10, conv, flat, lin)
+    model = ModelTmpl((3, 4, 4), 10, conv, flat, lin)
     model.sync_shapes()
     assert model.out_shape is 10
     model_instance = model.instantiate_model()
@@ -442,15 +446,22 @@ def test_model_templates_init():
     assert model.out_shape == output.shape[1]
 
 
+def test_model_templates_zero_shape():
+    with pytest.raises(ValueError):
+        conv1 = Conv2dTmpl(stride=(3, 3))
+        avg = AvgPool2dTmpl()
+        ModelTmpl((2, 3, 3), 1, conv1, avg)
+
+
 def test_model_layers_init_inshape():
-    model = ModelTmpl((3, 4, 4))
+    model = ModelLayersTmpl((3, 4, 4))
     model.sync_shapes()
     assert model.out_shape is None
 
 
 def test_model_layers_init_templaes():
     conv = ConvLayerTmpl()
-    model = ModelTmpl(None, None, conv)
+    model = ModelLayersTmpl(None, None, conv)
     model.sync_shapes()
     assert model.out_shape is None
 
@@ -462,7 +473,7 @@ def test_model_layers_init():
     flat.gen_rand_layer()
     lin = LastLinLayerTmpl()
     lin.gen_rand_layer()
-    model = ModelTmpl((3, 4, 4), 10, conv, flat, lin)
+    model = ModelLayersTmpl((3, 4, 4), 10, conv, flat, lin)
     model.sync_shapes()
     assert model.out_shape is 10
     model_instance = model.instantiate_model()

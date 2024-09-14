@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 
 import sophius
-from sophius.modelgen import ConvGAPModelGenerator, ConvFCModelGenerator, ConvModelGenerator
+from sophius.modelgen import ConvModelGenerator
 
 
 def test_model_conv():

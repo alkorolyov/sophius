@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import torch
 import random
 import numpy as np
 from math import ceil, floor
@@ -241,26 +244,16 @@ class ModuleTemplate_():
         return repr_str
 
     def __eq__(self, other):
-        # check different modules
         if self.__class__.__name__ != other.__class__.__name__:
             return False
-        # check config for same modules
 
         if self.params != other.params:
             return False
 
         return True
-        # for key, val in self.params.items():
-        #     other_val = other.params.get(key)
-        #     if other_val is None:
-        #         return False
-        #     if other_val != val:
-        #         return False
-        #
-        # return True
+
 
 class LinearTmpl(ModuleTemplate_):
-
     config = {
         'out_features': {
             'default': 256,
@@ -527,10 +520,10 @@ class ConvTemplate_(ModuleTemplate_):
             self.out_shape = None
             return
         else:
-            in_shape=self.in_shape
+            in_shape = self.in_shape
             padding = self._calc_padding_size()
             if out_channels is None:
-                out_channels=self.params['out_channels']
+                out_channels = self.params['out_channels']
             if kernel_size is None:
                 kernel_size = self.params['kernel_size']
             if stride is None:
@@ -1005,11 +998,6 @@ class LayerTemplate_():
 
         self.out_shape = next_in_shape
 
-    # def set_in_shape(self, in_shape):
-        # self.in_shape = in_shape
-        # self.out_shape = in_shape
-        # self.sync_shapes()
-
     def gen_rand_layer(self):
         self.templates = []
         self._generate_main_template()
@@ -1020,8 +1008,7 @@ class LayerTemplate_():
         '''
         Children should overwrite this method
         '''
-        pass
-        # raise NotImplementedError
+        raise NotImplementedError
 
     def _generate_aux_templates(self):
         if self.config.get('activation') is None:
@@ -1056,11 +1043,11 @@ class LayerTemplate_():
             self.out_shape = tmpl.out_shape
 
     def instantiate_layer(self):
-        module_instances = []
+        modules = []
         for tmpl in self.templates:
-            instance = tmpl.instantiate_module()
-            module_instances.append(instance)
-        return Sequential(*module_instances)
+            m = tmpl.instantiate_module()
+            modules.append(m)
+        return Sequential(*modules)
 
     def __repr__(self):
         out_str = ''
@@ -1135,14 +1122,13 @@ class FlatLayerTmpl(LayerTemplate_):
         self._generate_main_template()
 
     def _generate_main_template(self):
-        self._generate_template('FlattenTmpl', in_shape = self.in_shape)
+        self._generate_template('FlattenTmpl', in_shape=self.in_shape)
 
 
 ####################### MODEL TEMPLATE ##################
 
 
-
-class ModelTmpl:
+class ModelLayersTmpl:
     '''
         Model created from Layer templates
     '''
@@ -1233,11 +1219,11 @@ class ModelTmpl:
         return out_str
 
 
-class ModelTmpl_:
+class ModelTmpl:
     '''
         ModelTmpl created from Module templates. Last template must be linear.        
     '''
-    def __init__(self, in_shape=None, out_shape=None, *templates):
+    def __init__(self, in_shape=None, out_shape=None, *templates: ModuleTemplate_):
         self.in_shape = in_shape
         self.out_shape = out_shape
         self.is_zero_shape = False
@@ -1260,21 +1246,17 @@ class ModelTmpl_:
         self._sync_shapes()
 
     def _sync_shapes(self):
-        if self.in_shape is None:
-            self.out_shape = None
-            return        
-        if not self.templates:
-            return
-        next_in_shape = self.in_shape
+        in_shape = self.in_shape
         for tmpl in self.templates:
-            tmpl.in_shape = next_in_shape
-            tmpl._update_out_shape()
-            if tmpl._is_zero_shape():
+            tmpl.in_shape = in_shape
+            tmpl.update_shape()
+            if tmpl.is_zero_shape:
                 # debug info
                 print(tmpl.torch_name, tmpl.in_shape, tmpl.out_shape)
+                raise ValueError(f'Zero in output shape template: {tmpl} shape: {tmpl.out_shape}')
                 # self.templates.remove(tmpl)
             else:
-                next_in_shape = tmpl.out_shape
+                in_shape = tmpl.out_shape
         self._set_last_shape()
 
     def _set_last_shape(self):
@@ -1285,11 +1267,15 @@ class ModelTmpl_:
         # self.out_shape = out_shape
         # self.sync_shapes()
     
-    def instantiate_model(self):
+    def instantiate_model(self, gpu=False):
         mods = []
         for tmpl in self.templates:
             mods.append(tmpl.instantiate_module())        
         model = Sequential(*mods)
+
+        if gpu:
+            return model.type(torch.cuda.FloatTensor)
+
         return model
 
     def __repr__(self):
@@ -1297,4 +1283,13 @@ class ModelTmpl_:
         for tmpl in self.templates:
             out_str += repr(tmpl) + '\n'         
         return out_str
+
+    def __eq__(self, other):
+        if len(self.templates) != len(other.templates):
+            return False
+        for i in range(len(self.templates)):
+            if self.templates[i] != other.templates[i]:
+                return False
+        return True
+
 
