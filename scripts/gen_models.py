@@ -20,10 +20,10 @@ def main():
         T.ToTensor(),
         T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     ])
-    print('Loading CIFAR10 ... ', end='')
+    print('===> Loading CIFAR10 ... ', end='')
     cifar10 = dset.CIFAR10('../data/CIFAR10', train=True, download=True, transform=normalize)
 
-    print('Transfer dataset to gpu ... ', end='')
+    print('===> Preprocessing dataset ... ', end='')
     cifar_gpu = dload.cifar_to_gpu(cifar10)
     print('Done')
 
@@ -44,7 +44,7 @@ def main():
         },
     }
 
-    print('Creating experiment')
+    print('===> Creating experiment')
 
     exp_params = {**train_params, **{'in_shape': (3, 32, 32), 'out_shpape': 10}}
     print(exp_params)
@@ -62,7 +62,7 @@ def main():
         df.index.name = 'id'
         if exp_id == 0:
             df.astype(str).to_sql('experiments', conn, if_exists='append')
-            print('Experiment created, exp_id:', exp_id)
+            print('New experiment created, exp_id:', exp_id)
         else:
             # check if experiment exists
             res = conn.execute('SELECT id FROM experiments WHERE hash == ?', (exp_hash,)).fetchone()
@@ -71,11 +71,12 @@ def main():
                 print('Experiment exists, exp_id:', exp_id)
             else:
                 df.astype(str).to_sql('experiments', conn, if_exists='append')
-                print('Experiment created, exp_id:', exp_id)
+                print('New experiment created, exp_id:', exp_id)
 
-    print('Generating models')
-    model_gen = ConvModelGenerator((3, 32, 32), 10, conv_num=1, lin_num=1)
+    print('===> Generating models')
+    model_gen = ConvModelGenerator((3, 32, 32), 10, conv_num=16, lin_num=3)
 
+    best_model = {'val_acc': 0}
     pb = tqdm()
     while True:
         model_tmpl = model_gen.generate_model_tmpl()
@@ -106,15 +107,23 @@ def main():
         epoch_results['model_id'] = model_id
         epoch_results['exp_id'] = exp_id
 
+        if model_results['val_acc'] > best_model['val_acc']:
+            best_model['val_acc'] = model_results['val_acc']
+            best_model['train_acc'] = model_results['train_acc']
+            best_model['conv_layers'] = model_tmpl.get_conv_len()
+
         with sqlite3.connect('../data/models.db') as conn:
             df = pd.DataFrame([model_results]).set_index('id').astype(str)
             df.to_sql('models', conn, if_exists='append')
             epoch_results.to_sql('model_epochs', conn, if_exists='append', index=False)
 
-        val_acc = epoch_results.val_acc.iloc[-10:].mean()
-        train_acc = epoch_results.train_acc.iloc[-10:].mean()
         pb.update(1)
-        pb.set_description(f'val_acc {val_acc:.3f} train_acc {train_acc:.3f}')
+        desc_msg = (f"best acc: val {best_model['val_acc']:.3f} | "
+                    f"conv {best_model['conv_layers']:2d} | "
+                    f"curr acc: val {model_results['val_acc']:.3f} | "
+                    f"train {model_results['train_acc']:.3f} | "
+                    f"time {model_results['time'].astype(int):3d}s")
+        pb.set_description(desc_msg)
 
 if __name__ == '__main__':
     main()
