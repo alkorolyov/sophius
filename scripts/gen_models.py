@@ -121,8 +121,8 @@ def main():
         desc_msg = (f"best: val {best_model['val_acc']:.3f} | "
                     f"conv {best_model['conv_layers']:2d} | "
                     f"curr: val {model_results['val_acc']:.3f} | "
-                    f"conv {model_tmpl.get_conv_len():2d} | "
                     f"train {model_results['train_acc']:.3f} | "
+                    f"conv {model_tmpl.get_conv_len():2d} | "
                     f"time {model_results['time'].astype(int):3d}s")
         pb.set_description(desc_msg)
 
