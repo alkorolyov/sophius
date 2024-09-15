@@ -118,9 +118,10 @@ def main():
             epoch_results.to_sql('model_epochs', conn, if_exists='append', index=False)
 
         pb.update(1)
-        desc_msg = (f"best acc: val {best_model['val_acc']:.3f} | "
+        desc_msg = (f"best: val {best_model['val_acc']:.3f} | "
                     f"conv {best_model['conv_layers']:2d} | "
-                    f"curr acc: val {model_results['val_acc']:.3f} | "
+                    f"curr: val {model_results['val_acc']:.3f} | "
+                    f"conv {model_tmpl.get_conv_len():2d} | "
                     f"train {model_results['train_acc']:.3f} | "
                     f"time {model_results['time'].astype(int):3d}s")
         pb.set_description(desc_msg)
