@@ -50,9 +50,11 @@ def get_loader_gpu(cifar_gpu, val_size=1024, batch_size=512):
     train_size = len(cifar_gpu[0]) - val_size
     train_small_size = val_size
 
-    loader_train_small_gpu = DataLoaderGPU(cifar_gpu, 
-                                    batch_size=batch_size,
-                                    sampler=SubsetRandomSampler(np.random.randint(train_size, size=train_small_size)))
+    loader_train_small_gpu = DataLoaderGPU(
+        cifar_gpu,
+        batch_size=batch_size,
+        sampler=SubsetRandomSampler(np.random.randint(train_size, size=train_small_size))
+    )
     loader_val_gpu = DataLoaderGPU(cifar_gpu,
                                    batch_size=batch_size,
                                    sampler=ChunkSampler(val_size, start=train_size))
@@ -113,7 +115,7 @@ class DataLoaderGPU():
         index = []
         for _ in range(self.batch_size):
             index.append(next(self._sampler_iter))
-        return torch.tensor(index).type(torch.cuda.LongTensor)  # pylint: disable=not-callable
+        return torch.tensor(index).type(torch.cuda.IntTensor)  # pylint: disable=not-callable
     
     def _next_data(self, index):
         x = torch.index_select(self.dataset[0], 0, index)
@@ -125,7 +127,7 @@ class DataLoaderGPU():
         return len(self.sampler)
 
 
-class ChunkSampler(Sampler):
+class ChunkSampler:
     """Samples elements sequentially from some offset. 
     Arguments:
         num_samples (int): # of desired datapoints
