@@ -1277,6 +1277,13 @@ class ModelTmpl:
 
         return model
 
+    def get_conv_len(self):
+        conv_layers = [t for t in self.templates if isinstance(t, Conv2dTmpl)]
+        return len(conv_layers)
+
+    def __len__(self):
+        return len(self.templates)
+
     def __repr__(self):
         out_str = ''
         for tmpl in self.templates:
