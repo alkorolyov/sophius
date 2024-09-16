@@ -90,9 +90,9 @@ def main():
     while True:
         model_tmpl = model_gen.generate_model_tmpl()
         model = model_tmpl.instantiate_model().type(torch.cuda.FloatTensor)
-        est_val_acc = estimate_val_acc(model_tmpl)
 
-        if est_val_acc < val_threshold:
+        # skip below estimated threshold
+        if estimate_val_acc(model_tmpl) < val_threshold:
             continue
 
         epoch_results = train_on_gpu_ex(
