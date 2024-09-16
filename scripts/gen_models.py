@@ -47,7 +47,7 @@ def main():
         },
     }
 
-    val_threshold = 0.6
+    val_threshold = 0.60
 
     def estimate_val_acc(model_tmpl):
         t = torch.tensor(encoder.model2vec(model_tmpl), dtype=torch.float32)
