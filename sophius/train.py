@@ -11,6 +11,8 @@ from sophius.dataload import get_loader_gpu
 import tqdm
 
 import torch
+from torch.optim import AdamW, Adam
+from torch.optim.lr_scheduler import ExponentialLR, MultiStepLR
 
 
 def _instance_from_name(class_name, *args, **kwargs):

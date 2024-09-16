@@ -10,10 +10,12 @@ from sophius.modelgen import ConvModelGenerator
 from sophius.encode import Encoder
 from sophius.utils import calc_model_flops, hash_dict
 from sophius.train import train_on_gpu_ex
+from sophius.estimate import LSTMRegressor
 
 import torch
 import torchvision.datasets as dset
 import torchvision.transforms as T
+
 
 def main():
     normalize = T.Compose([
@@ -28,6 +30,7 @@ def main():
     print('Done')
 
     encoder = Encoder()
+    estimator = torch.load('../data/models/estimator_v1.pth').cpu()
 
     train_params = {
         'val_size': 10000,
@@ -43,6 +46,12 @@ def main():
             'gamma': 0.95,
         },
     }
+
+    val_threshold = 0.6
+
+    def estimate_val_acc(model_tmpl):
+        t = torch.tensor(encoder.model2vec(model_tmpl), dtype=torch.float32)
+        return estimator.cpu()(t).item()
 
     print('===> Creating experiment')
 
@@ -81,6 +90,10 @@ def main():
     while True:
         model_tmpl = model_gen.generate_model_tmpl()
         model = model_tmpl.instantiate_model().type(torch.cuda.FloatTensor)
+        est_val_acc = estimate_val_acc(model_tmpl)
+
+        if est_val_acc < val_threshold:
+            continue
 
         epoch_results = train_on_gpu_ex(
             model=model,
@@ -89,6 +102,7 @@ def main():
             **train_params,
         )
 
+        # get model_id
         model_id = 0
         with sqlite3.connect('../data/models.db') as conn:
             try:
