@@ -1,9 +1,12 @@
+import numpy as np
+import pandas as pd
+from copy import deepcopy
+
 import torch
 import torch.nn as nn
-import numpy as np
 
 from torch.utils.data.sampler import Sampler, SubsetRandomSampler
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 import torchvision.datasets as dset
 
 
@@ -90,7 +93,7 @@ def get_loader(cifar, num_val=1024, batch_size=512):
     return loader
 
 
-class DataLoaderGPU():
+class DataLoaderGPU:
     """ Simple data loader from GPU. 
     Arguments:
         dataset_gpu (dataset): dataset loaded to GPU
@@ -143,4 +146,81 @@ class ChunkSampler:
     def __len__(self):
         return self.num_samples
 
+# Dataset definition remains the same
+class SequenceDataset(Dataset):
+    """
+    Simple dataset, loads sequences to GPU as list tensors
+    Args:
+        sequences (list): list of 1D arrays
+        targets: 1D array of target values
+    """
+    def __init__(self, sequences, targets):
+        self.sequences = [torch.tensor(seq).type(torch.cuda.FloatTensor) for seq in sequences]
+        self.targets = torch.tensor(targets).view(-1, 1).type(torch.cuda.FloatTensor)
 
+    def __len__(self):
+        return len(self.sequences)
+
+    def __getitem__(self, idx):
+        sequence = self.sequences[idx]
+        target = self.targets[idx]
+        return sequence, target
+
+
+class SequenceLoader:
+    """ Simple data loader
+    """
+
+    def __init__(self, dataset=None, batch_size=1, shuffle=True):
+        self.dataset = dataset
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.ids_list = None
+        self.len_dict, self.rev_len_dict = self._get_len_dicts()
+        self._rev_len_dict = deepcopy(self.rev_len_dict)
+
+    def _get_len_dicts(self):
+        sequences = [x[0].cpu().numpy() for x in self.dataset]
+        df = pd.DataFrame([sequences]).T.rename(columns={0: 'seq'})
+        df['len'] = df.seq.apply(len)
+
+        len_dict = df.reset_index()['len'].to_dict()  # idx -> len
+        rev_len_dict = df.reset_index().groupby('len')['index'].apply(list).to_dict()  # len -> ids list
+
+        # shuffle ids list
+        if self.shuffle:
+            for v in rev_len_dict.values():
+                np.random.shuffle(v)
+
+        return len_dict, rev_len_dict
+
+    def __iter__(self):
+        self.rev_len_dict = deepcopy(self._rev_len_dict)
+        self.ids_list = [i for v in self.rev_len_dict.values() for i in v]
+
+        while len(self.ids_list) > 0:
+            # get random idx and get its length
+            i = np.random.choice(self.ids_list)
+            seq_len = self.len_dict[i]
+
+            batch_ids = []
+            # fill batch with seq indices with same size
+            for j in range(self.batch_size):
+                # try pop until ids list not empty
+                if len(self.rev_len_dict[seq_len]) != 0:
+                    batch_ids.append(self.rev_len_dict[seq_len].pop())
+                else:
+                    # oversampling from full list
+                    batch_ids.append(np.random.choice(self._rev_len_dict[seq_len]))
+
+            # update ids list
+            self.ids_list = [i for v in self.rev_len_dict.values() for i in v]
+
+            # print(f"Batch idx {i}:", batch_ids)
+            batch_ids = torch.tensor(batch_ids).type(torch.cuda.IntTensor)
+            X = torch.stack([self.dataset[i][0] for i in batch_ids])
+            y = torch.stack([self.dataset[i][1] for i in batch_ids])
+            yield X, y
+
+    def __len__(self):
+        return len(self.dataset) // self.batch_size

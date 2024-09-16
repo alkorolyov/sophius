@@ -3,17 +3,15 @@ import time
 import numpy as np
 import pandas as pd
 
-import torch
 import torch.nn as nn
 import torch.optim as optim
-import matplotlib.pyplot as plt
 
 import sophius.utils as utils
 from sophius.dataload import get_loader_gpu
 import tqdm
 
-from torch.optim import AdamW
-from torch.optim.lr_scheduler import ExponentialLR
+import torch
+
 
 def _instance_from_name(class_name, *args, **kwargs):
     """
