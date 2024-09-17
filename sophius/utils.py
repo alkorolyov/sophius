@@ -19,14 +19,14 @@ def reset(m):
         m.reset_parameters()
 
 
-def shuffle_dict(d):
+def shuffle_dict(d: dict):
     l = list(d.items())
     random.shuffle(l)
     d = dict(l)
     return d
 
 
-def hash_dict(d):
+def hash_dict(d: dict):
     return hashlib.sha256(json.dumps(d, sort_keys=True).encode('utf8')).hexdigest()
 
 

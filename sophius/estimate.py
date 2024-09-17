@@ -6,9 +6,6 @@ class LSTMRegressor(torch.nn.Module):
                  hidden_dim=128,
                  num_layers=1,
                  dropout=0.0,
-                 lr=1e-3,
-                 gamma=0.9,
-                 num_epochs=None,
                  **_):
         super().__init__()
         self.lstm = torch.nn.LSTM(
@@ -18,9 +15,6 @@ class LSTMRegressor(torch.nn.Module):
             dropout=dropout,
             batch_first=True)
         self.fc = torch.nn.Linear(hidden_dim, 1)
-        self.lr = lr
-        self.gamma = gamma
-        self.val_loss = None
 
     def forward(self, x):
         _, (hidden, _) = self.lstm(x)
