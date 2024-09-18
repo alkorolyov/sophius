@@ -152,22 +152,23 @@ with sqlite3.connect('../data/models.db') as conn:
 encoder = Encoder()
 df['vec'] = df['hash'].apply(str_to_vec)
 
-# load dataset and split to train and validation
+# load dataset
 dataset = SequenceDataset(df.vec.tolist(), df.val_acc.values)
+
+# split to train and validation
 train, val = random_split(dataset, [0.8, 0.2], generator=torch.Generator().manual_seed(RANDOM_SEED))
 train_loader = SequenceLoader(train, batch_size=hparams['batch_size'])
 val_loader = SequenceLoader(val, batch_size=hparams['batch_size'])
 
+# initialize model
 reg = LSTMRegressor(**hparams).cuda()
-
 opt = torch.optim.Adam(reg.parameters(), lr=hparams['lr'])
 sch = torch.optim.lr_scheduler.ExponentialLR(opt, gamma=hparams['gamma'])
-loader = SequenceLoader(dataset, batch_size=hparams['batch_size'])
 
 # training cycle
 reg.train()
 for i in tqdm(range(hparams['num_epochs']), desc='Epoch'):
-    for (x, y) in loader:
+    for (x, y) in train_loader:
         y_pred = reg(x)
         loss = F.mse_loss(y_pred, y)
         opt.zero_grad()
