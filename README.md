@@ -10,9 +10,8 @@
  of convolutional and linear layers, with optional auxialary layers between them. Automatically
  fixes input and output shapes sizes for all torch Modules. 
 
- # Example usage
 
- ```python
+```python
 import torch
 import sophius.utils as utils
 import sophius.dataload as dload
@@ -73,7 +72,7 @@ For that each layer was encoded as a 32bit vector and whole architecture is repr
 
 Example of bit vector representation of the model
 
-```
+```python
 from sophius.templates import Conv2dTmpl
 from sophius.encode import Encoder
 
@@ -99,8 +98,9 @@ print(encoder.model2vec(model_tmpl))
 
 ```
 
-LSTMRegressor
-```
+LSTMRegressor. Dropout 0.5 was necessary to avoid overfitting on small dataset
+
+```python
 import torch
 
 class LSTMRegressor(torch.nn.Module):
@@ -123,7 +123,7 @@ class LSTMRegressor(torch.nn.Module):
         _, (hidden, _) = self.lstm(x)
         return self.fc(hidden[-1])
 ```
-Training results on validation set. Dropout 0.5 was necessary to avoid overfittin on small dataset
+Training results on validation set. 
 
 ![image](https://github.com/user-attachments/assets/c86d287b-516d-4091-a499-c7dad7653167)
 
