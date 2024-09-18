@@ -1,7 +1,12 @@
 # sophius
- Model and Layer templates Generator for pytroch
+ Multistep project for automatical neural network architecture search (NAS) for visual recognition tasks (CIFAR10 as example)
 
- Works as a Keras analogue. Model Generator can generate model templates with random number
+ 
+ # Step 1
+ Generate random a set of random models and evaluate their performance.
+
+ For that custom Module Templates and Model Generator was written.
+ Model Generator can generate model templates with random number
  of convolutional and linear layers, with optional auxialary layers between them. Automatically
  fixes input and output shapes sizes for all torch Modules. 
 
@@ -30,7 +35,7 @@ print(model_tmpl)
 # Linear       10
 
 # Instantiate model to torch model
-fixed_model_gpu = model_tmpl.instantiate_model().type(torch.cuda.FloatTensor)
+fixed_model_gpu = model_tmpl.instantiate_model().cuda()
 print(fixed_model_gpu)
 
 # Sequential(
@@ -61,6 +66,45 @@ t, val_acc, train_acc = train_express_gpu(model = fixed_model_gpu,
 # val_acc: 0.468, train_acc: 0.462
 ```
 
+# Step 2
+Train custom LSTM model to predict validation accuracy of the generated models.
+
+For that each layer was encoded as a 32bit bector and whole architecture is represented as
+(num_layers, 32) shape array. It is used as an input to custom LSTMRegressor. Which then used
+to filter only high accuracy models during random generation. After around 2000 randomly generated models
+we have a good R^2 > 0.8 correlation on the validation set.
+
+```
+import torch
+
+class LSTMRegressor(torch.nn.Module):
+    def __init__(self,
+                 input_dim=32,
+                 hidden_dim=128,
+                 num_layers=1,
+                 dropout=0.0,
+                 **_):
+        super().__init__()
+        self.lstm = torch.nn.LSTM(
+            input_dim,
+            hidden_dim,
+            num_layers=num_layers,
+            dropout=dropout,
+            batch_first=True)
+        self.fc = torch.nn.Linear(hidden_dim, 1)
+
+    def forward(self, x):
+        _, (hidden, _) = self.lstm(x)
+        return self.fc(hidden[-1])
+```
+
+![image](https://github.com/user-attachments/assets/c86d287b-516d-4091-a499-c7dad7653167)
+
+# Step 3
+Would be to implement genetic algorithm to further optimize and selecte the best sequences to reach more than
+0.9 accuracy on the validation set.
+
+
 
 ```
 python -m ipykernel install --user --name sophius
@@ -69,7 +113,7 @@ python -m ipykernel install --user --name sophius
  # To install locally for edit
  pip install -e <local sophius folder>
  Example: 
- pip install -e c:\Users\Alex\Documents\Anaconda3\projects\sophius
+ pip install -e .
 
 # edit pytest.ini
 Edit .vscode/settings.json and for pytest support:
