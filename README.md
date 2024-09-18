@@ -70,19 +70,46 @@ t, val_acc, train_acc = train_express_gpu(model = fixed_model_gpu,
 Train custom LSTM model to predict validation accuracy of the generated models.
 
 For that each layer was encoded as a 32bit bector and whole architecture is represented as
-(num_layers, 32) shape array. It is used as an input to custom LSTMRegressor. Which then used
+(num_layers, 32) shape array. Then it is used as an input to custom LSTMRegressor. Which then used
 to filter only high accuracy models during random generation. After around 2000 randomly generated models
 we have a good R^2 > 0.8 correlation on the validation set.
 
+Example of bit vector representation of the model
+
+```
+from sophius.templates import *
+from sophius.encode import Encoder
+
+t = Conv2dTmpl(out_channels=32, kernel_size=(3, 3), stride=(1, 1))
+print(encoder.encode_template(t))
+# [0 0 0 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0]
+
+model_gen = ConvModelGenerator((3, 32, 32), 10, conv_num=1, lin_num=1)
+model_tmpl = model_gen.generate_model_tmpl()
+
+print(model_tmpl)
+# Conv2d       (8, 10, 10)    (5, 5)   (3, 3)
+# PReLU        (8, 10, 10)
+# Flatten      800
+# Linear       10
+
+print(encoder.model2vec(model_tmpl))
+[0 0 0 0 0 0 0 0 1 0 0 0 1 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 1 0 0 1]
+[0 0 0 0 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+[0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]            
+
+```
+
+LSTMRegressor
 ```
 import torch
 
 class LSTMRegressor(torch.nn.Module):
     def __init__(self,
                  input_dim=32,
-                 hidden_dim=128,
-                 num_layers=1,
-                 dropout=0.0,
+                 hidden_dim=32,
+                 num_layers=2,
+                 dropout=0.5,
                  **_):
         super().__init__()
         self.lstm = torch.nn.LSTM(
@@ -97,6 +124,7 @@ class LSTMRegressor(torch.nn.Module):
         _, (hidden, _) = self.lstm(x)
         return self.fc(hidden[-1])
 ```
+Training results on validation set. Dropout 0.5 was necessary to avoid overfittin on small dataset
 
 ![image](https://github.com/user-attachments/assets/c86d287b-516d-4091-a499-c7dad7653167)
 
