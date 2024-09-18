@@ -3,7 +3,7 @@
 
  
  # Step 1
- Generate random a set of random models and evaluate their performance.
+ Generate random a set of random models, evaluate their performance and store results in local database.
 
  For that custom Module Templates and Model Generator was written.
  Model Generator can generate model templates with random number
@@ -128,7 +128,7 @@ Training results on validation set. Dropout 0.5 was necessary to avoid overfitti
 ![image](https://github.com/user-attachments/assets/c86d287b-516d-4091-a499-c7dad7653167)
 
 # Step 3
-Would be to implement genetic algorithm to further optimize and selecte the best sequences to reach more than
+Would be to implement genetic algorithm to further optimize and select the best sequences to reach more than
 0.9 accuracy on the validation set.
 
 
