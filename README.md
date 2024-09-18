@@ -130,20 +130,3 @@ Training results on validation set.
 # Step 3
 Would be to implement genetic algorithm to further optimize and select the best sequences to reach more than
 0.9 accuracy on the validation set.
-
-
-
-```
-python -m ipykernel install --user --name sophius
-```
-
- # To install locally for edit
- pip install -e <local sophius folder>
- Example: 
- pip install -e .
-
-# edit pytest.ini
-Edit .vscode/settings.json and for pytest support:
-    "python.testing.pytestArgs": [
-        "-o", "junit_family=xunit1"
-    ],
