@@ -1220,7 +1220,7 @@ class ModelLayersTmpl:
 
 class ModelTmpl:
     '''
-        ModelTmpl created from Module templates. Last template must be linear.        
+        Model Template created from module templates. Last template late must be linear.
     '''
     def __init__(self, in_shape=None, out_shape=None, *templates: ModuleTemplate_):
         self.in_shape = in_shape
@@ -1266,16 +1266,9 @@ class ModelTmpl:
         # self.out_shape = out_shape
         # self.sync_shapes()
     
-    def instantiate_model(self, gpu=False):
-        mods = []
-        for tmpl in self.templates:
-            mods.append(tmpl.instantiate_module())        
-        model = Sequential(*mods)
-
-        if gpu:
-            return model.type(torch.cuda.FloatTensor)
-
-        return model
+    def instantiate_model(self):
+        mods = [t.instantiate_module() for t in self.templates]
+        return Sequential(*mods)
 
     def get_conv_len(self):
         conv_layers = [t for t in self.templates if isinstance(t, Conv2dTmpl)]

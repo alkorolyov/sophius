@@ -62,7 +62,7 @@ class Encoder:
         self.types = [t.__name__ for t in templates]
         self.size = size
 
-    def encode_template(self, template: ModuleTemplate_, dtype=np.uint8):
+    def encode_template(self, template: ModuleTemplate_, dtype=np.uint8) -> np.ndarray:
         """
         Encodes template to bit vector.
         First 12 bytes is onehot encoded template type, taken from TEMPLATES const.
@@ -106,7 +106,7 @@ class Encoder:
         if len(final_encoding) > self.size:
             raise ValueError(f'Template encoding too long: {len(final_encoding)}, too many params?')
 
-        final_encoding = np.pad(final_encoding, (0, max(0, self.size - len(final_encoding))))
+        final_encoding = np.pad(final_encoding, (0, self.size - len(final_encoding)))
 
         return final_encoding
 
@@ -138,7 +138,7 @@ class Encoder:
         """
         Decodes a bit vector back to a template object.
         @param input_vec: 1D bit vector encoding
-        @return: Decoded template object
+        @return: Decoded template
         """
         # Decode the template type from the first 12 bits
         type_encoding = input_vec[:len(self.types)]

@@ -146,7 +146,7 @@ class ChunkSampler:
     def __len__(self):
         return self.num_samples
 
-# Dataset definition remains the same
+
 class SequenceDataset(Dataset):
     """
     Simple dataset, loads sequences to GPU as list tensors
@@ -176,45 +176,46 @@ class SequenceLoader:
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.ids_list = None
-        self.len_dict, self.rev_len_dict = self._get_len_dicts()
-        self._rev_len_dict = deepcopy(self.rev_len_dict)
+        self.idx_to_len, self.len_to_ids = self._get_len_dicts()
+        self._len_to_ids = deepcopy(self.len_to_ids)
+
 
     def _get_len_dicts(self):
         sequences = [x[0].cpu().numpy() for x in self.dataset]
         df = pd.DataFrame([sequences]).T.rename(columns={0: 'seq'})
         df['len'] = df.seq.apply(len)
 
-        len_dict = df.reset_index()['len'].to_dict()  # idx -> len
-        rev_len_dict = df.reset_index().groupby('len')['index'].apply(list).to_dict()  # len -> ids list
+        idx_to_len = df.reset_index()['len'].to_dict()  # idx -> len
+        len_to_ids = df.reset_index().groupby('len')['index'].apply(list).to_dict()  # len -> ids list
 
         # shuffle ids list
         if self.shuffle:
-            for v in rev_len_dict.values():
+            for v in len_to_ids.values():
                 np.random.shuffle(v)
 
-        return len_dict, rev_len_dict
+        return idx_to_len, len_to_ids
 
     def __iter__(self):
-        self.rev_len_dict = deepcopy(self._rev_len_dict)
-        self.ids_list = [i for v in self.rev_len_dict.values() for i in v]
+        self.len_to_ids = deepcopy(self._len_to_ids)
+        self.ids_list = [i for v in self.len_to_ids.values() for i in v]
 
         while len(self.ids_list) > 0:
             # get random idx and get its length
             i = np.random.choice(self.ids_list)
-            seq_len = self.len_dict[i]
+            seq_len = self.idx_to_len[i]
 
             batch_ids = []
             # fill batch with seq indices with same size
             for j in range(self.batch_size):
                 # try pop until ids list not empty
-                if len(self.rev_len_dict[seq_len]) != 0:
-                    batch_ids.append(self.rev_len_dict[seq_len].pop())
+                if len(self.len_to_ids[seq_len]) != 0:
+                    batch_ids.append(self.len_to_ids[seq_len].pop())
                 else:
                     # oversampling from full list
-                    batch_ids.append(np.random.choice(self._rev_len_dict[seq_len]))
+                    batch_ids.append(np.random.choice(self._len_to_ids[seq_len]))
 
-            # update ids list
-            self.ids_list = [i for v in self.rev_len_dict.values() for i in v]
+            # update ids left
+            self.ids_list = [i for v in self.len_to_ids.values() for i in v]
 
             # print(f"Batch idx {i}:", batch_ids)
             batch_ids = torch.tensor(batch_ids).type(torch.cuda.IntTensor)
