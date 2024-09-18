@@ -74,10 +74,12 @@ For that each layer was encoded as a 32bit vector and whole architecture is repr
 Example of bit vector representation of the model
 
 ```
-from sophius.templates import *
+from sophius.templates import Conv2dTmpl
 from sophius.encode import Encoder
 
+encoder = Encoder()
 t = Conv2dTmpl(out_channels=32, kernel_size=(3, 3), stride=(1, 1))
+
 print(encoder.encode_template(t))
 # [0 0 0 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0]
 
@@ -91,9 +93,9 @@ print(model_tmpl)
 # Linear       10
 
 print(encoder.model2vec(model_tmpl))
-[0 0 0 0 0 0 0 0 1 0 0 0 1 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 1 0 0 1]
-[0 0 0 0 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
-[0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]            
+# [0 0 0 0 0 0 0 0 1 0 0 0 1 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 1 0 0 1]
+# [0 0 0 0 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+# [0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]            
 
 ```
 
