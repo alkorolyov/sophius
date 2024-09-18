@@ -98,7 +98,7 @@ print(encoder.model2vec(model_tmpl))
 
 ```
 
-LSTMRegressor. Dropout 0.5 was necessary to avoid overfitting on small dataset
+LSTMRegressor. Dropout 0.5 was necessary to avoid overfitting on small dataset. Also custom SequenceDataset and SequenceLoader were implemented to provide variable length sequnces as batches to the training routine.
 
 ```python
 import torch
@@ -122,6 +122,62 @@ class LSTMRegressor(torch.nn.Module):
     def forward(self, x):
         _, (hidden, _) = self.lstm(x)
         return self.fc(hidden[-1])
+
+```
+
+Example of LSTM training procedure
+
+```python
+from sophius.dataload import SequenceLoader, SequenceDataset
+from sophius.estimate import LSTMRegressor
+from sophius.encode import Encoder, str_to_vec
+
+# define training hyperparameters
+hparams = {
+    'lr': 1e-3,
+    'gamma': 1,
+    'hidden_dim': 32,
+    'num_layers': 2,
+    'dropout': 0.5,
+    'input_dim': 32,
+    'num_epochs': 20,
+    'batch_size': 8,
+}
+
+# read evaluated models from local database
+with sqlite3.connect('../data/models.db') as conn:
+    df = pd.read_sql('SELECT * FROM models WHERE exp_id=0', conn)
+
+# convert model hash to bit vector array
+encoder = Encoder()
+df['vec'] = df['hash'].apply(str_to_vec)
+
+# load dataset and split to train and validation
+dataset = SequenceDataset(df.vec.tolist(), df.val_acc.values)
+train, val = random_split(dataset, [0.8, 0.2], generator=torch.Generator().manual_seed(RANDOM_SEED))
+train_loader = SequenceLoader(train, batch_size=hparams['batch_size'])
+val_loader = SequenceLoader(val, batch_size=hparams['batch_size'])
+
+reg = LSTMRegressor(**hparams).cuda()
+
+opt = torch.optim.Adam(reg.parameters(), lr=hparams['lr'])
+sch = torch.optim.lr_scheduler.ExponentialLR(opt, gamma=hparams['gamma'])
+loader = SequenceLoader(dataset, batch_size=hparams['batch_size'])
+
+# training cycle
+reg.train()
+for i in tqdm(range(hparams['num_epochs']), desc='Epoch'):
+    for (x, y) in loader:
+        y_pred = reg(x)
+        loss = F.mse_loss(y_pred, y)
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+        sch.step()
+
+# save model        
+torch.save(reg, '../data/models/estimator_v1.pth')
+
 ```
 Training results on validation set. 
 
