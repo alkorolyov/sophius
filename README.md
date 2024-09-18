@@ -180,7 +180,7 @@ for i in tqdm(range(hparams['num_epochs']), desc='Epoch'):
 torch.save(reg, '../data/models/estimator_v1.pth')
 
 ```
-Training results on validation set. 
+Predictions for the validation set
 
 ![image](https://github.com/user-attachments/assets/c86d287b-516d-4091-a499-c7dad7653167)
 
