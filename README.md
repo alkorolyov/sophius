@@ -69,10 +69,7 @@ t, val_acc, train_acc = train_express_gpu(model = fixed_model_gpu,
 # Step 2
 Train custom LSTM model to predict validation accuracy of the generated models.
 
-For that each layer was encoded as a 32bit bector and whole architecture is represented as
-(num_layers, 32) shape array. Then it is used as an input to custom LSTMRegressor. Which then used
-to filter only high accuracy models during random generation. After around 2000 randomly generated models
-we have a good R^2 > 0.8 correlation on the validation set.
+For that each layer was encoded as a 32bit vector and whole architecture is represented as sequence of vectors. Then it is used as an input to custom LSTMRegressor. Which then used to filter only high accuracy models during random generation. After around 2000 randomly generated models we have a good R^2 > 0.8 correlation on the validation set.
 
 Example of bit vector representation of the model
 
