@@ -48,11 +48,9 @@ print(fixed_model_gpu)
 # )
 
 # Load CIFAR to gpu memory, using custom dataloader
-VAL_SIZE = 1024
-cifar10 = dset.CIFAR10('../data/CIFAR10', train=True, download=True,
-                           transform=T.ToTensor())
+cifar10 = dset.CIFAR10('../data/CIFAR10', train=True, download=True, transform=T.ToTensor())
 cifar_gpu = dload.cifar_to_gpu(cifar10)
-loader_gpu = dload.get_loader_gpu(cifar_gpu, val_size=VAL_SIZE, batch_size=1024)
+loader_gpu = dload.get_loader_gpu(cifar_gpu, val_size=1024, batch_size=1024)
 
 # Train
 t, val_acc, train_acc = train_express_gpu(model = fixed_model_gpu,
