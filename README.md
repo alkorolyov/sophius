@@ -1,13 +1,17 @@
 # sophius
- Model and Layer templates Generator for pytroch
+ Multistep project for automatical neural network architecture search (NAS) for visual recognition tasks (CIFAR10 as example)
 
- Works as a Keras analogue. Model Generator can generate model templates with random number
+ 
+ # Step 1
+ Generate random a set of random models, evaluate their performance and store results in local database.
+
+ For that custom Module Templates and Model Generator was written.
+ Model Generator can generate model templates with random number
  of convolutional and linear layers, with optional auxialary layers between them. Automatically
  fixes input and output shapes sizes for all torch Modules. 
 
- # Example usage
 
- ```python
+```python
 import torch
 import sophius.utils as utils
 import sophius.dataload as dload
@@ -30,7 +34,7 @@ print(model_tmpl)
 # Linear       10
 
 # Instantiate model to torch model
-fixed_model_gpu = model_tmpl.instantiate_model().type(torch.cuda.FloatTensor)
+fixed_model_gpu = model_tmpl.instantiate_model().cuda()
 print(fixed_model_gpu)
 
 # Sequential(
@@ -44,11 +48,9 @@ print(fixed_model_gpu)
 # )
 
 # Load CIFAR to gpu memory, using custom dataloader
-VAL_SIZE = 1024
-cifar10 = dset.CIFAR10('../data/CIFAR10', train=True, download=True,
-                           transform=T.ToTensor())
+cifar10 = dset.CIFAR10('../data/CIFAR10', train=True, download=True, transform=T.ToTensor())
 cifar_gpu = dload.cifar_to_gpu(cifar10)
-loader_gpu = dload.get_loader_gpu(cifar_gpu, val_size=VAL_SIZE, batch_size=1024)
+loader_gpu = dload.get_loader_gpu(cifar_gpu, val_size=1024, batch_size=1024)
 
 # Train
 t, val_acc, train_acc = train_express_gpu(model = fixed_model_gpu,
@@ -61,18 +63,125 @@ t, val_acc, train_acc = train_express_gpu(model = fixed_model_gpu,
 # val_acc: 0.468, train_acc: 0.462
 ```
 
+# Step 2
+Train custom LSTM model to predict validation accuracy of the generated models.
+
+For that each layer was encoded as a 32bit vector and whole architecture is represented as sequence of vectors. Then it is used as an input to custom LSTMRegressor. Which then used to filter only high accuracy models during random generation. After around 2000 randomly generated models we have a good R^2 > 0.8 correlation on the validation set.
+
+Example of bit vector representation of the model
+
+```python
+from sophius.templates import Conv2dTmpl
+from sophius.encode import Encoder
+
+encoder = Encoder()
+t = Conv2dTmpl(out_channels=32, kernel_size=(3, 3), stride=(1, 1))
+
+print(encoder.encode_template(t))
+# [0 0 0 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0]
+
+model_gen = ConvModelGenerator((3, 32, 32), 10, conv_num=1, lin_num=1)
+model_tmpl = model_gen.generate_model_tmpl()
+
+print(model_tmpl)
+# Conv2d       (8, 10, 10)    (5, 5)   (3, 3)
+# PReLU        (8, 10, 10)
+# Flatten      800
+# Linear       10
+
+print(encoder.model2vec(model_tmpl))
+# [[0 0 0 0 0 0 0 0 1 0 0 0 1 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 1 0 0 1]
+#  [0 0 0 0 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+#  [0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]]
 
 ```
-python -m ipykernel install --user --name sophius
+
+LSTMRegressor. Dropout 0.5 was necessary to avoid overfitting on small dataset. Also custom SequenceDataset and SequenceLoader were implemented to provide variable length sequnces as batches to the training routine.
+
+```python
+import torch
+
+class LSTMRegressor(torch.nn.Module):
+    def __init__(self,
+                 input_dim=32,
+                 hidden_dim=32,
+                 num_layers=2,
+                 dropout=0.5,
+                 **_):
+        super().__init__()
+        self.lstm = torch.nn.LSTM(
+            input_dim,
+            hidden_dim,
+            num_layers=num_layers,
+            dropout=dropout,
+            batch_first=True)
+        self.fc = torch.nn.Linear(hidden_dim, 1)
+
+    def forward(self, x):
+        _, (hidden, _) = self.lstm(x)
+        return self.fc(hidden[-1])
+
 ```
 
- # To install locally for edit
- pip install -e <local sophius folder>
- Example: 
- pip install -e c:\Users\Alex\Documents\Anaconda3\projects\sophius
+Example of LSTM training procedure
 
-# edit pytest.ini
-Edit .vscode/settings.json and for pytest support:
-    "python.testing.pytestArgs": [
-        "-o", "junit_family=xunit1"
-    ],
+```python
+from sophius.dataload import SequenceLoader, SequenceDataset
+from sophius.estimate import LSTMRegressor
+from sophius.encode import Encoder, str_to_vec
+
+# define training hyperparameters
+hparams = {
+    'lr': 1e-3,
+    'gamma': 1,
+    'hidden_dim': 32,
+    'num_layers': 2,
+    'dropout': 0.5,
+    'input_dim': 32,
+    'num_epochs': 20,
+    'batch_size': 8,
+}
+
+# read evaluated models from local database
+with sqlite3.connect('../data/models.db') as conn:
+    df = pd.read_sql('SELECT * FROM models WHERE exp_id=0', conn)
+
+# convert model hash to bit vector array
+encoder = Encoder()
+df['vec'] = df['hash'].apply(str_to_vec)
+
+# load dataset
+dataset = SequenceDataset(df.vec.tolist(), df.val_acc.values)
+
+# split to train and validation
+train, val = random_split(dataset, [0.8, 0.2], generator=torch.Generator().manual_seed(RANDOM_SEED))
+train_loader = SequenceLoader(train, batch_size=hparams['batch_size'])
+val_loader = SequenceLoader(val, batch_size=hparams['batch_size'])
+
+# initialize model
+reg = LSTMRegressor(**hparams).cuda()
+opt = torch.optim.Adam(reg.parameters(), lr=hparams['lr'])
+sch = torch.optim.lr_scheduler.ExponentialLR(opt, gamma=hparams['gamma'])
+
+# training cycle
+reg.train()
+for i in tqdm(range(hparams['num_epochs']), desc='Epoch'):
+    for (x, y) in train_loader:
+        y_pred = reg(x)
+        loss = F.mse_loss(y_pred, y)
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+        sch.step()
+
+# save model        
+torch.save(reg, '../data/models/estimator_v1.pth')
+
+```
+Predictions for the validation set
+
+![image](https://github.com/user-attachments/assets/c86d287b-516d-4091-a499-c7dad7653167)
+
+# Step 3
+Would be to implement genetic algorithm to further optimize and select the best sequences to reach more than
+0.9 accuracy on the validation set.
