@@ -55,7 +55,7 @@ def main():
 
     print('===> Creating experiment')
 
-    exp_params = {**train_params, **{'in_shape': (3, 32, 32), 'out_shpape': 10}}
+    exp_params = {**train_params, **{'in_shape': (3, 32, 32), 'out_shape': 10}}
     print(exp_params)
 
     exp_id = 0
