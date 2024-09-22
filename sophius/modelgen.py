@@ -71,7 +71,7 @@ class ConvModelGenerator(ModelGenerator_):
         self.lin_num = lin_num
         self.layer = None
 
-    def generate_model_tmpl(self):
+    def generate_model_tmpl(self) -> ModelTmpl:
         self.layers = []
 
         self._gen_conv_layers()

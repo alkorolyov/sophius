@@ -1266,7 +1266,7 @@ class ModelTmpl:
         # self.out_shape = out_shape
         # self.sync_shapes()
     
-    def instantiate_model(self):
+    def instantiate_model(self) -> torch.nn.Module:
         mods = [t.instantiate_module() for t in self.templates]
         return Sequential(*mods)
 

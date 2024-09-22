@@ -12,6 +12,7 @@ import torch
 import hashlib
 import json
 
+from torch.nn import Module
 
 
 def reset(m):
@@ -100,7 +101,7 @@ def get_tensors_memory():
         print(tensor_size_formated, tensor_info_formated)
 
 
-def calc_model_flops(model, in_shape):
+def calc_model_flops(model:Module, in_shape: tuple):
     flops, macs, params = calculate_flops(model=model,
                                           input_shape=tuple([1] + list(in_shape)),
                                           output_as_string=False,

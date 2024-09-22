@@ -144,8 +144,8 @@ def train_on_gpu(
 
 
 def train_on_gpu_ex(
-        model=None,
-        dataset=None,
+        model,
+        dataset,
         val_size=10000,
         batch_size=1024,
         num_epoch=1,
@@ -167,7 +167,7 @@ def train_on_gpu_ex(
     if optimizer:
         optimizer = _instance_from_name(optimizer, model.parameters(), **opt_params)
     else:
-        optimizer = optim.AdamW(model.parameters())
+        optimizer = optim.Adam(model.parameters())
 
     if scheduler:
         scheduler = _instance_from_name(scheduler, optimizer, **sch_params)
