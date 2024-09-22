@@ -18,14 +18,14 @@ def cifar_to_gpu(cifar):
     Output:
         cifar_gpu (dataset): cifar dataset in GPU memory
     """    
-    loader = DataLoader(cifar, batch_size=512, num_workers=2)    
-    y = torch.empty(0, dtype=torch.int64)
+    loader = DataLoader(cifar, batch_size=4096, num_workers=2)
+    y = torch.empty(0, dtype=torch.int32)
     x = torch.empty(0, dtype=torch.float32)
     for batch in loader:
         y = torch.cat((y, batch[1]), 0)
         x = torch.cat((x, batch[0]), 0)
     cifar_gpu = [x.type(torch.cuda.FloatTensor), 
-                 y.type(torch.cuda.LongTensor)]
+                 y.type(torch.cuda.IntTensor)]
     return cifar_gpu
 
 
