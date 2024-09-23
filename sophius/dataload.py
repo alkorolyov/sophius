@@ -25,7 +25,7 @@ def cifar_to_gpu(cifar):
         y = torch.cat((y, batch[1]), 0)
         x = torch.cat((x, batch[0]), 0)
     cifar_gpu = [x.type(torch.cuda.FloatTensor), 
-                 y.type(torch.cuda.IntTensor)]
+                 y.type(torch.cuda.LongTensor),]
     return cifar_gpu
 
 

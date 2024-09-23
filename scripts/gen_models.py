@@ -11,6 +11,7 @@ from sophius.encode import Encoder
 from sophius.utils import calc_model_flops, hash_dict
 from sophius.train import train_on_gpu_ex
 from sophius.estimate import LSTMRegressor
+from sophius.db import database, Experiments, Models, ModelEpochs
 
 import torch
 import torchvision.datasets as dset
@@ -29,8 +30,13 @@ def main():
     cifar_gpu = dload.cifar_to_gpu(cifar10)
     print('Done')
 
+
     encoder = Encoder()
-    estimator = torch.load('../data/models/estimator_v1.pth').cpu()
+    estimator = torch.load('../data/models/estimator_v2.pth').cpu()
+
+    def estimate_val_acc(model_tmpl):
+        t = torch.tensor(encoder.model2vec(model_tmpl), dtype=torch.float32)
+        return estimator.cpu()(t).item()
 
     train_params = {
         'val_size': 10000,
@@ -47,97 +53,74 @@ def main():
         },
     }
 
-    val_threshold = 0.60
+    val_threshold = 0.70
 
-    def estimate_val_acc(model_tmpl):
-        t = torch.tensor(encoder.model2vec(model_tmpl), dtype=torch.float32)
-        return estimator.cpu()(t).item()
+    with database:
+        database.create_tables([Experiments, Models, ModelEpochs])
 
     print('===> Creating experiment')
-
     exp_params = {**train_params, **{'in_shape': (3, 32, 32), 'out_shape': 10}}
-    print(exp_params)
-
-    exp_id = 0
-    with sqlite3.connect('../data/models.db') as conn:
-        try:
-            exp_id = conn.execute('SELECT COUNT(*) FROM experiments').fetchone()[0]
-        except:
-            pass
-
-        df = pd.DataFrame([exp_params], index=[exp_id])
-        exp_hash = hash_dict(exp_params)
-        df['hash'] = exp_hash
-        df.index.name = 'id'
-        if exp_id == 0:
-            df.astype(str).to_sql('experiments', conn, if_exists='append')
-            print('New experiment created, exp_id:', exp_id)
-        else:
-            # check if experiment exists
-            res = conn.execute('SELECT id FROM experiments WHERE hash == ?', (exp_hash,)).fetchone()
-            if res:
-                exp_id = res[0]
-                print('Experiment exists, exp_id:', exp_id)
-            else:
-                df.astype(str).to_sql('experiments', conn, if_exists='append')
-                print('New experiment created, exp_id:', exp_id)
+    exp, _ = Experiments.get_or_create(**exp_params)
 
     print('===> Generating models')
-    model_gen = ConvModelGenerator((3, 32, 32), 10, conv_num=16, lin_num=3)
-
+    model_gen = ConvModelGenerator(
+        exp_params['in_shape'],
+        exp_params['out_shape'],
+        conv_num=16, lin_num=3
+    )
     best_model = {'val_acc': 0}
     pb = tqdm()
+
     while True:
         model_tmpl = model_gen.generate_model_tmpl()
-        model = model_tmpl.instantiate_model().type(torch.cuda.FloatTensor)
+        model_gpu = model_tmpl.instantiate_model().cuda()
 
         # skip below estimated threshold
         if estimate_val_acc(model_tmpl) < val_threshold:
             continue
 
         epoch_results = train_on_gpu_ex(
-            model=model,
+            model=model_gpu,
             dataset=cifar_gpu,
             verbose=False,
             **train_params,
         )
 
-        # get model_id
-        model_id = 0
-        with sqlite3.connect('../data/models.db') as conn:
-            try:
-                model_id = conn.execute('SELECT COUNT(*) FROM models').fetchone()[0]
-            except:
-                pass
+        model_info = calc_model_flops(model_gpu, model_gen.in_shape)
+        model = Models.create(
+            exp_id=exp.id,
+            hash=encoder.model2hash(model_tmpl),
+            flops=model_info['flops'],
+            macs=model_info['macs'],
+            params=model_info['params'],
+            val_acc=round(epoch_results.val_acc.iloc[-10:].mean(), 4),
+            train_acc=round(epoch_results.train_acc.iloc[-10:].mean(), 4),
+            time=round(epoch_results.time.iloc[-1], 1),
+        )
 
-        model_results = calc_model_flops(model, (3, 32, 32))
-        model_results['id'] = model_id
-        model_results['exp_id'] = exp_id
-        model_results['hash'] = encoder.model2hash(model_tmpl)
-        model_results['val_acc'] = epoch_results.val_acc.iloc[-10:].mean()
-        model_results['train_acc'] = epoch_results.train_acc.iloc[-10:].mean()
-        model_results['time'] = epoch_results.time.iloc[-1]
+        for _, row in epoch_results.iterrows():
+            ModelEpochs.create(
+                exp_id=exp.id,
+                model_id=model.id,
+                epoch=row['epoch'],
+                loss=round(row['loss'], 2),
+                train_acc=round(row['train_acc'], 4),
+                val_acc=round(row['val_acc'], 4),
+                time=round(row['time'], 1),
+            )
 
-        epoch_results['model_id'] = model_id
-        epoch_results['exp_id'] = exp_id
-
-        if model_results['val_acc'] > best_model['val_acc']:
-            best_model['val_acc'] = model_results['val_acc']
-            best_model['train_acc'] = model_results['train_acc']
+        if model.val_acc > best_model['val_acc']:
+            best_model['val_acc'] = model.val_acc
+            best_model['train_acc'] = model.train_acc
             best_model['conv_layers'] = model_tmpl.get_conv_len()
-
-        with sqlite3.connect('../data/models.db') as conn:
-            df = pd.DataFrame([model_results]).set_index('id').astype(str)
-            df.to_sql('models', conn, if_exists='append')
-            epoch_results.to_sql('model_epochs', conn, if_exists='append', index=False)
 
         pb.update(1)
         desc_msg = (f"best: val {best_model['val_acc']:.3f} | "
                     f"conv {best_model['conv_layers']:2d} | "
-                    f"curr: val {model_results['val_acc']:.3f} | "
-                    f"train {model_results['train_acc']:.3f} | "
+                    f"curr: val {model.val_acc:.3f} | "
+                    f"train {model.train_acc:.3f} | "
                     f"conv {model_tmpl.get_conv_len():2d} | "
-                    f"time {model_results['time'].astype(int):3d}s")
+                    f"time {model.time.astype(int):3d}s")
         pb.set_description(desc_msg)
 
 if __name__ == '__main__':
