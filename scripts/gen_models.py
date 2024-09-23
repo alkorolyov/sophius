@@ -66,7 +66,7 @@ def main():
     model_gen = ConvModelGenerator(
         exp_params['in_shape'],
         exp_params['out_shape'],
-        conv_num=16, lin_num=3
+        conv_num=10, lin_num=3
     )
     best_model = {'val_acc': 0}
     pb = tqdm()
@@ -115,13 +115,13 @@ def main():
             best_model['conv_layers'] = model_tmpl.get_conv_len()
 
         pb.update(1)
-        desc_msg = (f"best: val {best_model['val_acc']:.3f} | "
+        msg = (f"best: val {best_model['val_acc']:.3f} | "
                     f"conv {best_model['conv_layers']:2d} | "
                     f"curr: val {model.val_acc:.3f} | "
                     f"train {model.train_acc:.3f} | "
                     f"conv {model_tmpl.get_conv_len():2d} | "
                     f"time {model.time.astype(int):3d}s")
-        pb.set_description(desc_msg)
+        pb.set_description(msg)
 
 if __name__ == '__main__':
     main()
