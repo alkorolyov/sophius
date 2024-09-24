@@ -40,8 +40,8 @@ def main():
 
     train_params = {
         'val_size': 10000,
-        'batch_size': 256,
-        'num_epoch': 50,
+        'batch_size': 1024,
+        'num_epoch': 5,
         'random_seed': 42,
         'optimizer': 'AdamW',
         'opt_params': {
@@ -53,7 +53,7 @@ def main():
         },
     }
 
-    val_threshold = 0.70
+    val_threshold = 0.05
 
     with database:
         database.create_tables([Experiments, Models, Devices, Runs, ModelEpochs])
@@ -67,7 +67,7 @@ def main():
     model_gen = ConvModelGenerator(
         exp_params['in_shape'],
         exp_params['out_shape'],
-        conv_num=10, lin_num=3
+        conv_num=1, lin_num=1
     )
     best_res = {'val_acc': 0}
     pb = tqdm()
@@ -79,13 +79,6 @@ def main():
         # skip below estimated threshold
         if estimate_val_acc(model_tmpl) < val_threshold:
             continue
-
-        epoch_results = train_on_gpu_ex(
-            model=model_gpu,
-            dataset=cifar_gpu,
-            verbose=False,
-            **train_params,
-        )
 
         model_info = calc_model_flops(model_gpu, model_gen.in_shape)
         model, _ = Models.get_or_create(
