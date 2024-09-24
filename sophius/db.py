@@ -51,12 +51,21 @@ class Experiments(BaseModel):
         )
 
 
+class Devices(BaseModel):
+    name = TextField()
+
+
 class Models(BaseModel):
-    exp_id = ForeignKeyField(Experiments, backref='model')
-    hash = TextField()
+    hash = TextField(unique=True)
     flops = IntegerField()
     macs = IntegerField()
     params = IntegerField()
+
+
+class Runs(BaseModel):
+    exp_id = ForeignKeyField(Experiments, backref='runs')
+    model_id = ForeignKeyField(Models, backref='runs')
+    device_id = ForeignKeyField(Devices, backref='runs')
     val_acc = FloatField()
     train_acc = FloatField()
     time = FloatField()
@@ -64,7 +73,7 @@ class Models(BaseModel):
 
 class ModelEpochs(BaseModel):
     exp_id = ForeignKeyField(Experiments, backref='epoch')
-    model_id = ForeignKeyField(Models, backref='epoch')
+    run_id = ForeignKeyField(Runs, backref='epoch')
     epoch = IntegerField()
     loss = FloatField()
     train_acc = FloatField()
