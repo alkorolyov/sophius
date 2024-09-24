@@ -40,8 +40,8 @@ def main():
 
     train_params = {
         'val_size': 10000,
-        'batch_size': 1024,
-        'num_epoch': 5,
+        'batch_size': 256,
+        'num_epoch': 50,
         'random_seed': 42,
         'optimizer': 'AdamW',
         'opt_params': {
@@ -53,7 +53,7 @@ def main():
         },
     }
 
-    val_threshold = 0.05
+    val_threshold = 0.7
 
     with database:
         database.create_tables([Experiments, Models, Devices, Runs, ModelEpochs])
