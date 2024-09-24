@@ -41,7 +41,7 @@ def main():
     train_params = {
         'val_size': 10000,
         'batch_size': 256,
-        'num_epoch': 5,
+        'num_epoch': 50,
         'random_seed': 42,
         'optimizer': 'AdamW',
         'opt_params': {
