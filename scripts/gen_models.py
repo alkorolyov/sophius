@@ -4,6 +4,7 @@ sys.path.append("..")
 import sqlite3
 import pandas as pd
 from tqdm import tqdm
+from peewee import *
 
 import sophius.dataload as dload
 from sophius.modelgen import ConvModelGenerator
@@ -11,12 +12,11 @@ from sophius.encode import Encoder
 from sophius.utils import calc_model_flops, hash_dict
 from sophius.train import train_on_gpu_ex
 from sophius.estimate import LSTMRegressor
-from sophius.db import database, Experiments, Models, ModelEpochs
+from sophius.db import *
 
 import torch
 import torchvision.datasets as dset
 import torchvision.transforms as T
-
 
 def main():
     normalize = T.Compose([
@@ -41,7 +41,7 @@ def main():
     train_params = {
         'val_size': 10000,
         'batch_size': 256,
-        'num_epoch': 50,
+        'num_epoch': 5,
         'random_seed': 42,
         'optimizer': 'AdamW',
         'opt_params': {
@@ -56,11 +56,12 @@ def main():
     val_threshold = 0.70
 
     with database:
-        database.create_tables([Experiments, Models, ModelEpochs])
+        database.create_tables([Experiments, Models, Devices, Runs, ModelEpochs])
 
     print('===> Creating experiment')
     exp_params = {**train_params, **{'in_shape': (3, 32, 32), 'out_shape': 10}}
     exp, _ = Experiments.get_or_create(**exp_params)
+    dev, _ = Devices.get_or_create(name=torch.cuda.get_device_name())
 
     print('===> Generating models')
     model_gen = ConvModelGenerator(
@@ -87,26 +88,38 @@ def main():
         )
 
         model_info = calc_model_flops(model_gpu, model_gen.in_shape)
-        model = Models.create(
-            exp_id=exp.id,
+        model, _ = Models.get_or_create(
             hash=encoder.model2hash(model_tmpl),
             flops=model_info['flops'],
             macs=model_info['macs'],
             params=model_info['params'],
+        )
+
+        epoch_results = train_on_gpu_ex(
+            model=model_gpu,
+            dataset=cifar_gpu,
+            verbose=False,
+            **train_params,
+        )
+
+        run = Runs.create(
+            exp_id=exp.id,
+            model_id=model.id,
+            device_id=dev.id,
             val_acc=round(epoch_results.val_acc.iloc[-10:].mean(), 4),
             train_acc=round(epoch_results.train_acc.iloc[-10:].mean(), 4),
-            time=round(epoch_results.time.iloc[-1], 1),
+            time=round(epoch_results.time.iloc[-1], 3),
         )
 
         for _, row in epoch_results.iterrows():
             ModelEpochs.create(
                 exp_id=exp.id,
-                model_id=model.id,
+                run_id=run.id,
                 epoch=row['epoch'],
-                loss=round(row['loss'], 2),
-                train_acc=round(row['train_acc'], 4),
-                val_acc=round(row['val_acc'], 4),
-                time=round(row['time'], 1),
+                loss=row['loss'],
+                train_acc=row['train_acc'],
+                val_acc=row['val_acc'],
+                time=row['time'],
             )
 
         if model.val_acc > best_model['val_acc']:
