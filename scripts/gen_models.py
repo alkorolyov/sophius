@@ -69,7 +69,7 @@ def main():
         exp_params['out_shape'],
         conv_num=10, lin_num=3
     )
-    best_model = {'val_acc': 0}
+    best_res = {'val_acc': 0}
     pb = tqdm()
 
     while True:
@@ -113,7 +113,6 @@ def main():
 
         for _, row in epoch_results.iterrows():
             ModelEpochs.create(
-                exp_id=exp.id,
                 run_id=run.id,
                 epoch=row['epoch'],
                 loss=row['loss'],
@@ -122,18 +121,18 @@ def main():
                 time=row['time'],
             )
 
-        if model.val_acc > best_model['val_acc']:
-            best_model['val_acc'] = model.val_acc
-            best_model['train_acc'] = model.train_acc
-            best_model['conv_layers'] = model_tmpl.get_conv_len()
+        if run.val_acc > best_res['val_acc']:
+            best_res['val_acc'] = run.val_acc
+            best_res['train_acc'] = run.train_acc
+            best_res['conv_layers'] = model_tmpl.get_conv_len()
 
         pb.update(1)
-        msg = (f"best: val {best_model['val_acc']:.3f} | "
-                    f"conv {best_model['conv_layers']:2d} | "
-                    f"curr: val {model.val_acc:.3f} | "
-                    f"train {model.train_acc:.3f} | "
+        msg = (f"best: val {best_res['val_acc']:.3f} | "
+                    f"conv {best_res['conv_layers']:2d} | "
+                    f"curr: val {run.val_acc:.3f} | "
+                    f"train {run.train_acc:.3f} | "
                     f"conv {model_tmpl.get_conv_len():2d} | "
-                    f"time {model.time.astype(int):3d}s")
+                    f"time {run.time.astype(int):3d}s")
         pb.set_description(msg)
 
 if __name__ == '__main__':

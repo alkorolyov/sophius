@@ -72,9 +72,7 @@ class Runs(BaseModel):
 
 
 class ModelEpochs(BaseModel):
-    exp_id = ForeignKeyField(Experiments, backref='epoch')
     run_id = ForeignKeyField(Runs, backref='epoch')
-    epoch = IntegerField()
     loss = FloatField()
     train_acc = FloatField()
     val_acc = FloatField()
