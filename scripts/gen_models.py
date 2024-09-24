@@ -106,9 +106,9 @@ def main():
             exp_id=exp.id,
             model_id=model.id,
             device_id=dev.id,
-            val_acc=round(epoch_results.val_acc.iloc[-10:].mean(), 4),
-            train_acc=round(epoch_results.train_acc.iloc[-10:].mean(), 4),
-            time=round(epoch_results.time.iloc[-1], 3),
+            val_acc=epoch_results.val_acc.iloc[-10:].mean(),
+            train_acc=epoch_results.train_acc.iloc[-10:].mean(),
+            time=epoch_results.time.iloc[-1],
         )
 
         for _, row in epoch_results.iterrows():
