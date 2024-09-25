@@ -32,11 +32,6 @@ def main():
 
 
     encoder = Encoder()
-    estimator = torch.load('../data/models/estimator_v2.pth').cpu()
-
-    def estimate_val_acc(model_tmpl):
-        t = torch.tensor(encoder.model2vec(model_tmpl), dtype=torch.float32)
-        return estimator.cpu()(t).item()
 
     train_params = {
         'val_size': 10000,
