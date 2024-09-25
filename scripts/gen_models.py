@@ -9,10 +9,10 @@ from peewee import *
 import sophius.dataload as dload
 from sophius.modelgen import ConvModelGenerator
 from sophius.encode import Encoder
-from sophius.utils import calc_model_flops, hash_dict
+from sophius.utils import calc_model_flops
 from sophius.train import train_on_gpu_ex
-from sophius.estimate import LSTMRegressor
 from sophius.db import *
+from sophius.estimate import estimate_val_acc
 
 import torch
 import torchvision.datasets as dset
@@ -29,7 +29,6 @@ def main():
     print('===> Preprocessing dataset ... ', end='')
     cifar_gpu = dload.cifar_to_gpu(cifar10)
     print('Done')
-
 
     encoder = Encoder()
 
@@ -48,7 +47,7 @@ def main():
         },
     }
 
-    val_threshold = 0.7
+    val_threshold = 0.71
 
     with database:
         database.create_tables([Experiments, Models, Devices, Runs, ModelEpochs])
