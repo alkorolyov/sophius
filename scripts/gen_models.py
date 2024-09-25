@@ -12,7 +12,7 @@ from sophius.encode import Encoder
 from sophius.utils import calc_model_flops
 from sophius.train import train_on_gpu_ex
 from sophius.db import *
-from sophius.estimate import estimate_val_acc
+from sophius.estimate import Estimator
 
 import torch
 import torchvision.datasets as dset
@@ -31,6 +31,7 @@ def main():
     print('Done')
 
     encoder = Encoder()
+    estimator = Estimator()
 
     train_params = {
         'val_size': 10000,
@@ -71,7 +72,7 @@ def main():
         model_gpu = model_tmpl.instantiate_model().cuda()
 
         # skip below estimated threshold
-        if estimate_val_acc(model_tmpl) < val_threshold:
+        if estimator.predict_val_acc(model_tmpl) < val_threshold:
             continue
 
         model_info = calc_model_flops(model_gpu, model_gen.in_shape)
