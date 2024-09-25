@@ -2,7 +2,7 @@ from peewee import *
 from peewee import Expression, Value, OP
 from playhouse.sqlite_ext import JSONField
 
-database = SqliteDatabase('../data/test.db', pragmas=(('foreign_keys', 'ON'),))
+database = SqliteDatabase('../data/models.db', pragmas=(('foreign_keys', 'ON'),))
 
 class BaseModel(Model):
     class Meta:
