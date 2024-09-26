@@ -23,8 +23,10 @@ class LSTMRegressor(torch.nn.Module):
         _, (hidden, _) = self.lstm(x)
         return self.fc(hidden[-1])
 
+
+
 class Estimator:
-    def __init__(self, path: str = '../data/models/estimator_v2.pth'):
+    def __init__(self, path: str = '../data/models/estimator_v3.pth'):
         self.encoder = Encoder()
         self.estimator = torch.load(path).cpu()
         self.estimator.eval()
