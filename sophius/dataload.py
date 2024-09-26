@@ -8,7 +8,16 @@ import torch.nn as nn
 from torch.utils.data.sampler import Sampler, SubsetRandomSampler
 from torch.utils.data import DataLoader, Dataset
 import torchvision.datasets as dset
+import torchvision.transforms as T
 
+
+def load_cifar_gpu():
+    normalize = T.Compose([
+        T.ToTensor(),
+        T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+    ])
+    cifar10 = dset.CIFAR10('../data/CIFAR10', train=True, download=True, transform=normalize)
+    return cifar_to_gpu(cifar10)
 
 
 def cifar_to_gpu(cifar):

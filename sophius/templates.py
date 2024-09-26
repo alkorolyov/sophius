@@ -662,6 +662,8 @@ class Conv2dTmpl(ConvTemplate_):
         return repr_str
 
 
+
+
 class MaxPool2dTmpl(ConvTemplate_):
 
     config = {

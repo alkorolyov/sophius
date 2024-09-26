@@ -167,7 +167,7 @@ def train_on_gpu_ex(
     if optimizer:
         optimizer = _instance_from_name(optimizer, model.parameters(), **opt_params)
     else:
-        optimizer = optim.Adam(model.parameters())
+        optimizer = optim.AdamW(model.parameters())
 
     if scheduler:
         scheduler = _instance_from_name(scheduler, optimizer, **sch_params)
